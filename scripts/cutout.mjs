@@ -94,24 +94,51 @@ function dist(data, i, bg) {
   return Math.sqrt(dr * dr + dg * dg + db * db);
 }
 
-function cutout({ w, h, data }, tol) {
-  // background reference = average of the four corners
-  const corners = [0, (w - 1) * 4, (h - 1) * w * 4, ((h - 1) * w + (w - 1)) * 4];
-  const bg = [0, 0, 0];
-  for (const c of corners) { bg[0] += data[c]; bg[1] += data[c + 1]; bg[2] += data[c + 2]; }
-  bg[0] /= 4; bg[1] /= 4; bg[2] /= 4;
+function isLightBackdrop(bg) {
+  return (bg[0] + bg[1] + bg[2]) / 3 > 200;
+}
 
+/** Edge flood for white/gray studio PNGs — tight crop, no dark-costume issue. */
+function buildLightBackdropMask(data, w, h, bg, tol) {
+  const total = w * h;
+  const isBg = new Uint8Array(total);
+  const stack = [];
+
+  const pushIf = (x, y) => {
+    if (x < 0 || y < 0 || x >= w || y >= h) return;
+    const p = y * w + x;
+    if (isBg[p]) return;
+    if (dist(data, p * 4, bg) <= tol) { isBg[p] = 1; stack.push(p); }
+  };
+
+  for (let x = 0; x < w; x += 1) { pushIf(x, 0); pushIf(x, h - 1); }
+  for (let y = 0; y < h; y += 1) { pushIf(0, y); pushIf(w - 1, y); }
+
+  while (stack.length) {
+    const p = stack.pop();
+    const x = p % w;
+    const y = (p - x) / w;
+    pushIf(x + 1, y); pushIf(x - 1, y); pushIf(x, y + 1); pushIf(x, y - 1);
+  }
+
+  const fg = new Uint8Array(total);
+  for (let p = 0; p < total; p += 1) {
+    if (!isBg[p]) fg[p] = 1;
+  }
+  return fg;
+}
+
+/** Grow from vivid core pixels so black costumes stay attached on dark backdrops. */
+function buildDarkBackdropMask(data, w, h, bg, tol) {
   const total = w * h;
   const core = new Uint8Array(total);
   const fg = new Uint8Array(total);
   const coreTol = tol * 0.38;
 
-  // Seed from pixels that clearly aren't the backdrop (face, skin, bright costume).
   for (let p = 0; p < total; p += 1) {
     if (dist(data, p * 4, bg) > coreTol) core[p] = 1;
   }
 
-  // Grow outward from the figure so dark hoodies / suits stay attached to the body.
   fg.set(core);
   const dilatePasses = Math.max(16, Math.round(Math.min(w, h) * 0.045));
   for (let pass = 0; pass < dilatePasses; pass += 1) {
@@ -132,6 +159,19 @@ function cutout({ w, h, data }, tol) {
       }
     }
   }
+  return fg;
+}
+
+function cutout({ w, h, data }, tol) {
+  // background reference = average of the four corners
+  const corners = [0, (w - 1) * 4, (h - 1) * w * 4, ((h - 1) * w + (w - 1)) * 4];
+  const bg = [0, 0, 0];
+  for (const c of corners) { bg[0] += data[c]; bg[1] += data[c + 1]; bg[2] += data[c + 2]; }
+  bg[0] /= 4; bg[1] /= 4; bg[2] /= 4;
+
+  const fg = isLightBackdrop(bg)
+    ? buildLightBackdropMask(data, w, h, bg, tol)
+    : buildDarkBackdropMask(data, w, h, bg, tol);
 
   applyMatteAndFeather(data, w, h, fg, bg, tol);
 
