@@ -31,8 +31,9 @@ export function solidifyCharacterImageAlpha(scene, sheetKey) {
 
   for (let p = 0; p < total; p += 1) {
     const i = p * 4;
-    if (data[i + 3] >= 20) data[i + 3] = 255;
-    else data[i + 3] = 0;
+    const a = data[i + 3];
+    if (a < 10) data[i + 3] = 0;
+    else if (a >= 250) data[i + 3] = 255;
   }
 
   const outside = new Uint8Array(total);

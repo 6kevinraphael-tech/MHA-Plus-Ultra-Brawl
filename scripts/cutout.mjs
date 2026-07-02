@@ -133,15 +133,7 @@ function cutout({ w, h, data }, tol) {
     }
   }
 
-  // Hard matte — no semi-transparent fringe (that reads as faded / disappearing).
-  for (let p = 0; p < total; p += 1) {
-    const i = p * 4;
-    if (!fg[p]) {
-      data[i + 3] = 0;
-      continue;
-    }
-    data[i + 3] = 255;
-  }
+  applyMatteAndFeather(data, w, h, fg, bg, tol);
 
   pruneForegroundBlobs(data, w, h);
   fillInteriorHoles(data, w, h, 48);
@@ -158,11 +150,9 @@ function cutout({ w, h, data }, tol) {
   }
 
   if (minX <= maxX) {
-    solidifySilhouette(data, w, h, minX, minY, maxX, maxY, 6);
+    solidifySilhouette(data, w, h, minX, minY, maxX, maxY, 5);
     fillInteriorHoles(data, w, h, 32);
-    solidifySilhouette(data, w, h, minX, minY, maxX, maxY, 4);
-    enforceOpaqueFill(data, w, h);
-    punchContrast(data, w, h);
+    enforceInteriorOpaque(data, w, h, fg);
   }
 
   // recompute bounds after solidify
@@ -193,6 +183,48 @@ function cutout({ w, h, data }, tol) {
     }
   }
   return { png: out, cw, ch, bg };
+}
+
+/** Solid interior, soft anti-aliased outer edge only. */
+function applyMatteAndFeather(data, w, h, fg, bg, tol) {
+  const total = w * h;
+  const feather = tol * 0.5;
+
+  for (let p = 0; p < total; p += 1) {
+    const i = p * 4;
+    if (!fg[p]) {
+      data[i + 3] = 0;
+      continue;
+    }
+
+    const x = p % w;
+    const y = (p - x) / w;
+    const onEdge = x === 0 || x === w - 1 || y === 0 || y === h - 1
+      || !fg[p - 1] || !fg[p + 1] || !fg[p - w] || !fg[p + w];
+
+    if (!onEdge) {
+      data[i + 3] = 255;
+      continue;
+    }
+
+    const d = dist(data, i, bg);
+    const t = Math.min(1, d / feather);
+    data[i + 3] = Math.round(140 + t * 115);
+  }
+}
+
+/** Keep body pixels fully opaque without hardening the silhouette fringe. */
+function enforceInteriorOpaque(data, w, h, fg) {
+  const total = w * h;
+  for (let p = 0; p < total; p += 1) {
+    if (!fg[p]) continue;
+    const x = p % w;
+    const y = (p - x) / w;
+    const onEdge = x === 0 || x === w - 1 || y === 0 || y === h - 1
+      || !fg[p - 1] || !fg[p + 1] || !fg[p - w] || !fg[p + w];
+    if (onEdge) continue;
+    if (data[p * 4 + 3] > 24) data[p * 4 + 3] = 255;
+  }
 }
 
 /** Remove small disconnected alpha blobs while keeping the main figure + flame VFX. */
@@ -298,28 +330,6 @@ function solidifySilhouette(data, w, h, minX, minY, maxX, maxY, passes = 4) {
         data[i + 2] = Math.round(b / count);
         data[i + 3] = 255;
       }
-    }
-  }
-}
-
-/** Force every visible pixel fully opaque so scaled sprites don't look washed out. */
-function enforceOpaqueFill(data, w, h, minAlpha = 18) {
-  const total = w * h;
-  for (let p = 0; p < total; p += 1) {
-    const i = p * 4;
-    if (data[i + 3] >= minAlpha) data[i + 3] = 255;
-  }
-}
-
-/** Slight contrast boost on opaque pixels so costumes read bold in battle. */
-function punchContrast(data, w, h, amount = 1.1) {
-  const total = w * h;
-  for (let p = 0; p < total; p += 1) {
-    const i = p * 4;
-    if (data[i + 3] < 128) continue;
-    for (let c = 0; c < 3; c += 1) {
-      const v = (data[i + c] - 128) * amount + 128;
-      data[i + c] = Math.max(0, Math.min(255, Math.round(v)));
     }
   }
 }

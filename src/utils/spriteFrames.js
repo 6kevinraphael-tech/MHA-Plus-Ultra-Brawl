@@ -295,10 +295,10 @@ export function createStandeeBackdrop(scene, x, y, boxH, depth = 5) {
   return scene.add.ellipse(
     x,
     y - boxH * 0.48,
-    Math.round(boxH * 0.52),
-    Math.round(boxH * 0.9),
-    0xe4dcf5,
-    0.22,
+    Math.round(boxH * 0.58),
+    Math.round(boxH * 0.94),
+    0x6a5a7a,
+    0.06,
   ).setDepth(depth);
 }
 
