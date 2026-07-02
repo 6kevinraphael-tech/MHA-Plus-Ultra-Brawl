@@ -1,0 +1,205 @@
+export const GAME_WIDTH = 960;
+export const GAME_HEIGHT = 540;
+export const GROUND_Y = 460;
+export const GRAVITY = 1400;
+
+function fighter(faction, id, name, title, gridCol, gridRow, stats) {
+  const heroSide = faction === 'hero';
+  return {
+    id,
+    name,
+    title,
+    universe: 'mha',
+    faction,
+    roster: 'mha-roster',
+    gridCol,
+    gridRow,
+    color: heroSide ? 0x27ae60 : 0xb026ff,
+    auraColor: heroSide ? 0x58d68d : 0xc77dff,
+    hp: 110,
+    speed: 280,
+    jumpForce: 530,
+    lightDamage: 9,
+    heavyDamage: 15,
+    specialDamage: 28,
+    specialCost: 35,
+    blockReduction: 0.25,
+    ...stats,
+  };
+}
+
+const hero = (id, name, title, gridCol, gridRow, stats) => fighter('hero', id, name, title, gridCol, gridRow, stats);
+const villain = (id, name, title, gridCol, gridRow, stats) => fighter('villain', id, name, title, gridCol, gridRow, stats);
+
+/** Player 1 — Heroes */
+export const HERO_CHARACTERS = [
+  hero('deku', 'Izuku Midoriya', 'One For All', 2, 1, {
+    color: 0x27ae60,
+    auraColor: 0x58d68d,
+    speed: 285,
+    lightDamage: 11,
+    heavyDamage: 17,
+    specialName: 'Detroit Smash',
+    specialDesc: 'Full cowl power strike',
+    passive: 'Dark Awakening — below 33% HP unlocks 100% One For All',
+    specialDamage: 32,
+  }),
+  hero('allmight', 'All Might', 'Symbol of Peace', 1, 0, {
+    color: 0x3498db,
+    auraColor: 0x5dade2,
+    hp: 125,
+    speed: 240,
+    attackDurationMult: 1.42,
+    attackCooldownMult: 1.48,
+    specialName: 'United States of Smash',
+    specialDesc: 'Full-power hero punch',
+    passive: 'Plus Ultra — heavy attacks break guard; slow but crushing',
+    specialDamage: 38,
+    specialCost: 45,
+    guardBreakHeavy: true,
+    chipRate: 0.14,
+    heavyDamage: 18,
+  }),
+  hero('todoroki', 'Shoto Todoroki', 'Half-Cold Half-Hot', 3, 0, {
+    color: 0xecf0f1,
+    auraColor: 0x85c1e9,
+    speed: 284,
+    lightDamage: 10,
+    heavyDamage: 16,
+    specialName: 'Heaven-Piercing Ice Fire',
+    specialDesc: 'Alternates — ice freezes foes briefly, fire burns over time',
+    passive: 'Half-Cold Half-Hot — attacks alternate fire (+damage) and ice (slow)',
+    specialDamage: 34,
+    rangeBonus: { light: 12, heavy: 18, special: 48 },
+    preferredRange: 96,
+  }),
+  hero('bakugo', 'Katsuki Bakugo', 'Explosion', 0, 1, {
+    color: 0xff6600,
+    auraColor: 0xff9500,
+    hp: 105,
+    speed: 292,
+    lightDamage: 10,
+    heavyDamage: 16,
+    specialName: 'Howitzer Impact',
+    specialDesc: 'Massive explosion blast',
+    passive: 'Explosion — fast rushdown with blast reach on every hit',
+    specialDamage: 33,
+    specialCost: 34,
+    blockReduction: 0.2,
+    rangeBonus: { light: 32, heavy: 52, special: 130, aerial: 26, launcher: 22 },
+    preferredRange: 86,
+  }),
+  hero('uraraka', 'Ochaco Uraraka', 'Zero Gravity', 1, 1, {
+    color: 0xf1a7c1,
+    auraColor: 0xffb6c1,
+    hp: 106,
+    speed: 278,
+    lightDamage: 6,
+    heavyDamage: 9,
+    specialName: 'Zero Gravity',
+    specialDesc: 'Float foe for 2s — slam down for heavy damage',
+    passive: 'Zero Gravity — setup fighter; specials deal big slam damage',
+    specialDamage: 28,
+    specialCost: 32,
+    zeroGravityMult: 1.4,
+    blockReduction: 0.22,
+    rangeBonus: { special: 24 },
+    preferredRange: 72,
+  }),
+];
+
+/** Player 2 — Villains */
+export const VILLAIN_CHARACTERS = [
+  villain('shigaraki', 'Tomura Shigaraki', 'Decay', 1, 1, {
+    color: 0xbdc3c7,
+    auraColor: 0xc77dff,
+    speed: 270,
+    specialName: 'Decay Wave',
+    specialDesc: 'Disintegration touch',
+    passive: 'All For One — awakens below 33% HP, all stats buffed',
+    blockReduction: 0.15,
+    specialDamage: 30,
+  }),
+  villain('allforone', 'All For One', 'Symbol of Evil', 3, 1, {
+    color: 0x1a0828,
+    auraColor: 0x9b59b6,
+    hp: 112,
+    speed: 242,
+    lightDamage: 7,
+    heavyDamage: 12,
+    specialName: 'Air Cannon',
+    specialDesc: 'Devastating long-range quirk beam',
+    passive: 'Quirk arsenal — all attacks reach much farther',
+    specialDamage: 31,
+    specialCost: 32,
+    blockReduction: 0.2,
+    rangeBonus: { light: 46, heavy: 78, special: 158, aerial: 34, launcher: 26 },
+    preferredRange: 140,
+  }),
+  villain('dabi', 'Dabi', 'Cremation', 2, 1, {
+    color: 0x0c1633,
+    auraColor: 0x38bdf8,
+    hp: 105,
+    speed: 262,
+    lightDamage: 9,
+    heavyDamage: 14,
+    specialName: 'Prominence Burn',
+    specialDesc: 'Long-range blue flame blast',
+    passive: 'Cremation — long-range flame zoning',
+    specialDamage: 32,
+    specialCost: 32,
+    blockReduction: 0.18,
+    rangeBonus: { light: 46, heavy: 76, special: 155, aerial: 34, launcher: 26 },
+    preferredRange: 136,
+  }),
+  villain('stain', 'Stain', 'Hero Killer', 0, 1, {
+    color: 0x8b0000,
+    auraColor: 0xdc2626,
+    hp: 74,
+    speed: 318,
+    lightDamage: 12,
+    heavyDamage: 20,
+    specialName: 'Bloodcurdle',
+    specialDesc: 'Paralyzing blade whirlwind',
+    passive: 'Hero Killer — glass cannon; counter-hits deal bonus damage',
+    specialDamage: 31,
+    specialCost: 28,
+    blockReduction: 0.1,
+    preferredRange: 52,
+    counterBonus: 1.3,
+  }),
+  villain('twice', 'Jin Bubaigawara', 'Double', 2, 0, {
+    color: 0x1a1a1a,
+    auraColor: 0xd1d1d1,
+    hp: 100,
+    speed: 258,
+    lightDamage: 6,
+    heavyDamage: 8,
+    specialName: 'Double',
+    specialDesc: 'Spawn up to 5 clones — each has its own HP bar',
+    passive: 'Double — fragile swarmer, copies chip away with no knockback',
+    specialDamage: 0,
+    specialCost: 28,
+    blockReduction: 0.26,
+    noKnockback: true,
+    cloneMax: 5,
+    cloneHp: 18,
+    cloneDamageMin: 4,
+    cloneDamageMax: 8,
+    preferredRange: 90,
+  }),
+];
+
+export const ALL_CHARACTERS = [...HERO_CHARACTERS, ...VILLAIN_CHARACTERS];
+
+export function getCharacterById(id) {
+  return ALL_CHARACTERS.find((c) => c.id === id);
+}
+
+export function getRosterForFaction(faction) {
+  return faction === 'villain' ? VILLAIN_CHARACTERS : HERO_CHARACTERS;
+}
+
+export function getOpposingFaction(faction) {
+  return faction === 'villain' ? 'hero' : 'villain';
+}

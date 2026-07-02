@@ -1,0 +1,19 @@
+# Deploy the online relay so friends can play across the internet.
+# 1. Push repo to GitHub
+# 2. https://render.com → New → Blueprint → connect repo
+# 3. Copy the service URL (wss://cursed-clash-relay.onrender.com)
+# 4. Set VITE_ONLINE_WS_URL in your game build / hosting env
+
+services:
+  - type: web
+    name: cursed-clash-relay
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: node server/index.mjs
+    envVars:
+      - key: NODE_VERSION
+        value: 20
+      - key: PORT
+        value: 10000
+    healthCheckPath: /

@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>My Hero Academia: All's Justice — Fan Fighter</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      body {
+        background: #08060c radial-gradient(ellipse at 30% 20%, #2a1040 0%, #08060c 45%, #050308 100%);
+        overflow: hidden;
+      }
+      #game-container {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 100vh;
+      }
+      #game-container canvas {
+        border-radius: 2px;
+        box-shadow:
+          0 0 0 2px rgba(241, 196, 15, 0.12),
+          0 0 40px rgba(155, 89, 182, 0.15),
+          0 24px 80px rgba(0, 0, 0, 0.75);
+      }
+    </style>
+  </head>
+  <body>
+    <div id="game-container"></div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
