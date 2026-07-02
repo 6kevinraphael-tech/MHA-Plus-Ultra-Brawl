@@ -4,7 +4,6 @@ import {
   getRosterForFaction,
   GAME_WIDTH,
   GAME_HEIGHT,
-  GROUND_Y,
 } from '../data/characters.js';
 import {
   addPortraitToBox,
@@ -28,7 +27,8 @@ import {
   drawCenterClashGlow,
   drawCharSelectBackground,
   drawCharSelectTitle,
-  factionHeader,
+  drawFactionBanner,
+  CHAR_SELECT_DEPTH,
   getRosterLayout,
   setShardSelected,
   SLOTS_PER_PAGE,
@@ -44,10 +44,11 @@ import {
   leaveOnlineRoom,
 } from '../utils/onlineSession.js';
 
-const CENTER_Y = GROUND_Y + 4;
-const P1_STANDEE_X = 290;
-const P2_STANDEE_X = GAME_WIDTH - 290;
-const STANDEE_H = 380;
+const STAGE_FLOOR_Y = 478;
+const P1_STANDEE_X = 350;
+const P2_STANDEE_X = GAME_WIDTH - 350;
+const STANDEE_H = 320;
+const ROSTER_SCROLL_X = { left: 132, right: GAME_WIDTH - 132 };
 
 export class CharacterSelectScene extends Phaser.Scene {
   constructor() {
@@ -92,24 +93,32 @@ export class CharacterSelectScene extends Phaser.Scene {
 
     drawCharSelectBackground(this);
     drawCharSelectTitle(this);
-    drawCenterClashGlow(this, GAME_WIDTH / 2, CENTER_Y - 70, this.p1Palette.main, this.p2Palette.main);
+    drawCenterClashGlow(this, GAME_WIDTH / 2, STAGE_FLOOR_Y - 150, this.p1Palette.main, this.p2Palette.main);
 
-    this.vsBadge = holographicVsBadge(this, GAME_WIDTH / 2, CENTER_Y - 90);
+    this.vsBadge = holographicVsBadge(this, GAME_WIDTH / 2, STAGE_FLOOR_Y - 175, CHAR_SELECT_DEPTH.vsBadge);
 
-    factionHeader(this, 108, 58, factionLabel(this.playerSide), this.p1Palette.main, 'left');
-    factionHeader(this, GAME_WIDTH - 108, 58, factionLabel(getOpposingFaction(this.playerSide)), this.p2Palette.main, 'right');
-    label(this, 108, 76, 'PLAYER 1', { fontSize: '9px', color: UI.textDim, originX: 0, depth: 12 });
-    label(this, GAME_WIDTH - 108, 76, this.mode === '1p' ? 'CPU' : 'PLAYER 2', {
-      fontSize: '9px', color: UI.textDim, originX: 1, depth: 12,
-    });
+    drawFactionBanner(
+      this,
+      'left',
+      factionLabel(this.playerSide),
+      this.p1Palette.main,
+      'PLAYER 1',
+    );
+    drawFactionBanner(
+      this,
+      'right',
+      factionLabel(getOpposingFaction(this.playerSide)),
+      this.p2Palette.main,
+      this.mode === '1p' ? 'CPU' : 'PLAYER 2',
+    );
 
     this.infoPanel = this.createInfoPanel();
     this.hintText = label(this, GAME_WIDTH / 2, GAME_HEIGHT - 52, '', {
       fontSize: '11px',
       color: UI.text,
       align: 'center',
-      wordWrap: { width: 640 },
-      depth: 20,
+      wordWrap: { width: 520 },
+      depth: CHAR_SELECT_DEPTH.footer,
       stroke: '#000000',
       strokeThickness: 3,
     });
@@ -122,7 +131,7 @@ export class CharacterSelectScene extends Phaser.Scene {
         ? 'Click a fighter · ENTER or CONFIRM to lock in'
         : 'Click roster · ENTER or CONFIRM each pick';
     label(this, GAME_WIDTH / 2, GAME_HEIGHT - 30, ctrlLine, {
-      fontSize: '9px', color: UI.textMuted, letterSpacing: 1, depth: 20,
+      fontSize: '9px', color: UI.textMuted, letterSpacing: 1, depth: CHAR_SELECT_DEPTH.footer,
     });
 
     this.confirmBtn = createClickButton(this, GAME_WIDTH / 2, GAME_HEIGHT - 72, 'CONFIRM', () => {
@@ -161,12 +170,12 @@ export class CharacterSelectScene extends Phaser.Scene {
     this.p1Shards = this.buildRosterPanel(this.p1Roster, 'left', this.p1Palette.main, this.p1Layout, 1);
     this.p2Shards = this.buildRosterPanel(this.p2Roster, 'right', this.p2Palette.main, this.p2Layout, 2);
 
-    this.p1StandeePlate = createStandeeBackdrop(this, P1_STANDEE_X, CENTER_Y, STANDEE_H, 5);
-    this.p2StandeePlate = createStandeeBackdrop(this, P2_STANDEE_X, CENTER_Y, STANDEE_H, 5);
-    this.p1Standee = createSelectStandee(this, P1_STANDEE_X, CENTER_Y, this.p1Roster[0], false, STANDEE_H);
-    this.p2Standee = createSelectStandee(this, P2_STANDEE_X, CENTER_Y, this.p2Roster[0], true, STANDEE_H);
-    if (this.p1Standee) this.p1Standee.setDepth(6);
-    if (this.p2Standee) this.p2Standee.setDepth(6);
+    this.p1StandeePlate = createStandeeBackdrop(this, P1_STANDEE_X, STAGE_FLOOR_Y, STANDEE_H, CHAR_SELECT_DEPTH.standeeBackdrop);
+    this.p2StandeePlate = createStandeeBackdrop(this, P2_STANDEE_X, STAGE_FLOOR_Y, STANDEE_H, CHAR_SELECT_DEPTH.standeeBackdrop);
+    this.p1Standee = createSelectStandee(this, P1_STANDEE_X, STAGE_FLOOR_Y, this.p1Roster[0], false, STANDEE_H);
+    this.p2Standee = createSelectStandee(this, P2_STANDEE_X, STAGE_FLOOR_Y, this.p2Roster[0], true, STANDEE_H);
+    if (this.p1Standee) this.p1Standee.setDepth(CHAR_SELECT_DEPTH.standee);
+    if (this.p2Standee) this.p2Standee.setDepth(CHAR_SELECT_DEPTH.standee);
 
     this.updateSelection();
     this.updateHint();
@@ -220,14 +229,14 @@ export class CharacterSelectScene extends Phaser.Scene {
       entries.push(this.buildShardEntry(roster[rosterIndex], rosterIndex, slot, side, accent, true));
     }
 
-    const cx = side === 'left' ? 148 : GAME_WIDTH - 148;
+    const cx = side === 'left' ? ROSTER_SCROLL_X.left : ROSTER_SCROLL_X.right;
     const canScrollUp = scroll > 0;
     const canScrollDown = scroll + pageSize < roster.length;
-    this.drawScrollButton(cx, 108, 'up', canScrollUp, () => {
+    this.drawScrollButton(cx, 158, 'up', canScrollUp, () => {
       this[scrollKey] = Math.max(0, scroll - pageSize);
       this.refreshGridPanel(playerNum);
     });
-    this.drawScrollButton(cx, 392, 'down', canScrollDown, () => {
+    this.drawScrollButton(cx, 430, 'down', canScrollDown, () => {
       this[scrollKey] = Math.min(roster.length - pageSize, scroll + pageSize);
       if (this[scrollKey] < 0) this[scrollKey] = 0;
       this.refreshGridPanel(playerNum);
@@ -242,13 +251,13 @@ export class CharacterSelectScene extends Phaser.Scene {
       : createShardSlot(this, slot, side, accent, 18);
 
     const portraitX = isGrid ? slot.w * 0.5 : (side === 'left' ? slot.w * 0.55 : slot.w * 0.45);
-    const portraitY = isGrid ? slot.h * 0.42 : slot.h * 0.44;
-    const portrait = addPortraitToBox(this, shard, char, portraitX, portraitY, slot.w * 0.78, slot.h * 0.76);
+    const portraitY = isGrid ? slot.h * 0.4 : slot.h * 0.44;
+    const portrait = addPortraitToBox(this, shard, char, portraitX, portraitY, slot.w * 0.82, slot.h * 0.68);
 
     const shortName = char.name.split(' ').pop().toUpperCase();
-    const nameText = this.add.text(isGrid ? slot.w * 0.5 : slot.w * 0.5, slot.h - 12, shortName, {
+    const nameText = this.add.text(isGrid ? slot.w * 0.5 : slot.w * 0.5, slot.h - 10, shortName, {
       fontFamily: UI.font,
-      fontSize: isGrid ? '9px' : '10px',
+      fontSize: isGrid ? '8px' : '10px',
       color: UI.text,
       stroke: '#000000',
       strokeThickness: 4,
@@ -345,18 +354,18 @@ export class CharacterSelectScene extends Phaser.Scene {
   }
 
   createInfoPanel() {
-    const y = CENTER_Y + 36;
-    const panel = this.add.rectangle(GAME_WIDTH / 2, y, 480, 56, 0x000000, 0.55).setDepth(11);
-    panel.setStrokeStyle(2, UI.gold, 0.65);
+    const y = STAGE_FLOOR_Y + 8;
+    const panel = this.add.rectangle(GAME_WIDTH / 2, y, 420, 52, 0x000000, 0.62).setDepth(CHAR_SELECT_DEPTH.infoPanel);
+    panel.setStrokeStyle(2, UI.gold, 0.55);
 
-    const name = label(this, GAME_WIDTH / 2, y - 12, '', {
-      fontSize: '18px', color: UI.text, fontFamily: UI.font, fontStyle: 'italic', depth: 12,
+    const name = label(this, GAME_WIDTH / 2, y - 10, '', {
+      fontSize: '17px', color: UI.text, fontFamily: UI.font, fontStyle: 'italic', depth: CHAR_SELECT_DEPTH.infoPanel + 1,
     });
-    const special = label(this, GAME_WIDTH / 2, y + 6, '', {
-      fontSize: '11px', color: UI.goldText, depth: 12,
+    const special = label(this, GAME_WIDTH / 2, y + 8, '', {
+      fontSize: '10px', color: UI.goldText, depth: CHAR_SELECT_DEPTH.infoPanel + 1,
     });
     const passive = label(this, GAME_WIDTH / 2, y + 22, '', {
-      fontSize: '9px', color: UI.textMuted, depth: 12,
+      fontSize: '9px', color: UI.textMuted, depth: CHAR_SELECT_DEPTH.infoPanel + 1,
     });
 
     return { name, special, passive };

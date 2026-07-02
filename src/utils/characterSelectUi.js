@@ -5,52 +5,67 @@ import { UI, coverImage, comicTitle, rgba, label } from './uiTheme.js';
 /** Wedge slot positions — MHOJ radial layout (≤3 fighters). */
 export const SHARD_SLOTS = {
   left: [
-    { x: 102, y: 108, w: 156, h: 124 },
-    { x: 72, y: 262, w: 176, h: 132 },
-    { x: 102, y: 416, w: 156, h: 124 },
+    { x: 58, y: 178, w: 148, h: 108 },
+    { x: 36, y: 298, w: 168, h: 112 },
+    { x: 58, y: 418, w: 148, h: 108 },
   ],
   right: [
-    { x: 858, y: 98, w: 156, h: 114 },
-    { x: 888, y: 208, w: 156, h: 108 },
-    { x: 888, y: 318, w: 156, h: 108 },
-    { x: 858, y: 428, w: 156, h: 124 },
+    { x: 754, y: 178, w: 148, h: 108 },
+    { x: 756, y: 298, w: 168, h: 112 },
+    { x: 754, y: 418, w: 148, h: 108 },
   ],
 };
 
-/** 2×2 grid — used when a side has 4+ fighters (kept clear of center standee). */
+/** 2×2 grid — kept in the side columns, clear of center standees. */
 export const GRID_SLOTS = {
   left: [
-    { x: 48, y: 128, w: 132, h: 102 },
-    { x: 180, y: 128, w: 132, h: 102 },
-    { x: 48, y: 278, w: 132, h: 102 },
-    { x: 180, y: 278, w: 132, h: 102 },
+    { x: 22, y: 168, w: 108, h: 82 },
+    { x: 134, y: 168, w: 108, h: 82 },
+    { x: 22, y: 262, w: 108, h: 82 },
+    { x: 134, y: 262, w: 108, h: 82 },
   ],
   right: [
-    { x: 828, y: 128, w: 132, h: 102 },
-    { x: 696, y: 128, w: 132, h: 102 },
-    { x: 828, y: 278, w: 132, h: 102 },
-    { x: 696, y: 278, w: 132, h: 102 },
+    { x: 718, y: 168, w: 108, h: 82 },
+    { x: 830, y: 168, w: 108, h: 82 },
+    { x: 718, y: 262, w: 108, h: 82 },
+    { x: 830, y: 262, w: 108, h: 82 },
   ],
 };
 
 export const SLOTS_PER_PAGE = 4;
 
-/** 3+2 grid — fits five fighters without scrolling. */
+/** 3+2 grid — five fighters in the left/right gutters. */
 export const GRID_SLOTS_5 = {
   left: [
-    { x: 48, y: 108, w: 128, h: 92 },
-    { x: 184, y: 108, w: 128, h: 92 },
-    { x: 48, y: 218, w: 128, h: 92 },
-    { x: 184, y: 218, w: 128, h: 92 },
-    { x: 116, y: 328, w: 128, h: 92 },
+    { x: 22, y: 168, w: 108, h: 78 },
+    { x: 134, y: 168, w: 108, h: 78 },
+    { x: 22, y: 256, w: 108, h: 78 },
+    { x: 134, y: 256, w: 108, h: 78 },
+    { x: 78, y: 344, w: 108, h: 78 },
   ],
   right: [
-    { x: 828, y: 108, w: 128, h: 92 },
-    { x: 692, y: 108, w: 128, h: 92 },
-    { x: 828, y: 218, w: 128, h: 92 },
-    { x: 692, y: 218, w: 128, h: 92 },
-    { x: 760, y: 328, w: 128, h: 92 },
+    { x: 718, y: 168, w: 108, h: 78 },
+    { x: 830, y: 168, w: 108, h: 78 },
+    { x: 718, y: 256, w: 108, h: 78 },
+    { x: 830, y: 256, w: 108, h: 78 },
+    { x: 774, y: 344, w: 108, h: 78 },
   ],
+};
+
+/** Layout depth layers — standees always render above roster tiles. */
+export const CHAR_SELECT_DEPTH = {
+  bg: -100,
+  bgOverlay: -98,
+  rosterColumn: 4,
+  centerGlow: 18,
+  rosterShard: 14,
+  standeeBackdrop: 36,
+  standee: 42,
+  vsBadge: 44,
+  infoPanel: 46,
+  factionBanner: 48,
+  title: 50,
+  footer: 52,
 };
 
 function shardPoints(x, y, w, h, skew, side) {
@@ -82,20 +97,44 @@ export function drawCharSelectBackground(scene) {
   g.fillGradientStyle(0x000000, 0x000000, 0x000000, 0x000000, 0.08, 0.08, 0.18, 0.22);
   g.fillRect(0, GAME_HEIGHT - 100, GAME_WIDTH, 100);
 
-  g.lineStyle(3, 0xffffff, 0.55);
-  g.lineBetween(GAME_WIDTH / 2, 48, GAME_WIDTH / 2, GAME_HEIGHT - 80);
+  g.lineStyle(2, 0xffffff, 0.22);
+  g.lineBetween(GAME_WIDTH / 2, 96, GAME_WIDTH / 2, GAME_HEIGHT - 88);
+
+  drawRosterColumnPanels(scene);
+}
+
+/** Side gutters + center stage so tiles never sit under the big previews. */
+export function drawRosterColumnPanels(scene) {
+  const d = CHAR_SELECT_DEPTH.rosterColumn;
+  const left = scene.add.graphics().setDepth(d);
+  left.fillStyle(0x06040c, 0.82);
+  left.fillRoundedRect(8, 96, 248, 392, 6);
+  left.lineStyle(2, 0xffffff, 0.12);
+  left.strokeRoundedRect(8, 96, 248, 392, 6);
+
+  const right = scene.add.graphics().setDepth(d);
+  right.fillStyle(0x06040c, 0.82);
+  right.fillRoundedRect(GAME_WIDTH - 256, 96, 248, 392, 6);
+  right.lineStyle(2, 0xffffff, 0.12);
+  right.strokeRoundedRect(GAME_WIDTH - 256, 96, 248, 392, 6);
+
+  const stage = scene.add.graphics().setDepth(d + 1);
+  stage.fillStyle(0x0a0814, 0.45);
+  stage.fillRoundedRect(262, 88, 436, 408, 8);
+  stage.lineStyle(2, 0xffffff, 0.08);
+  stage.strokeRoundedRect(262, 88, 436, 408, 8);
 }
 
 export function drawCharSelectTitle(scene) {
   comicTitle(scene, GAME_WIDTH / 2, 34, 'SELECT FIGHTER', {
     size: 36,
     color: UI.goldText,
-    depth: 14,
+    depth: CHAR_SELECT_DEPTH.title,
   });
 }
 
 /** Single selectable shard panel. */
-export function createShardSlot(scene, slot, side, accent, depth = 8) {
+export function createShardSlot(scene, slot, side, accent, depth = CHAR_SELECT_DEPTH.rosterShard) {
   const skew = side === 'left' ? 22 : -22;
   const anchorX = slot.x;
   const anchorY = slot.y - slot.h / 2;
@@ -127,7 +166,7 @@ export function createShardSlot(scene, slot, side, accent, depth = 8) {
 }
 
 /** Compact grid cell for 2×2 roster layout. */
-export function createGridSlot(scene, slot, side, accent, depth = 8) {
+export function createGridSlot(scene, slot, side, accent, depth = CHAR_SELECT_DEPTH.rosterShard) {
   const anchorX = slot.x;
   const anchorY = slot.y - slot.h / 2;
   const container = scene.add.container(anchorX, anchorY).setDepth(depth);
@@ -193,26 +232,55 @@ export function setShardSelected(shard, selected, confirmed) {
 
 /** Static center glow between the two preview standees. */
 export function drawCenterClashGlow(scene, x, y, p1Accent, p2Accent) {
-  const g = scene.add.graphics().setDepth(3);
-  g.fillStyle(p1Accent, 0.18);
-  g.fillCircle(x - 55, y - 60, 100);
-  g.fillStyle(p2Accent, 0.18);
-  g.fillCircle(x + 55, y - 60, 100);
-  g.fillStyle(0xffffff, 0.1);
-  g.fillCircle(x, y - 60, 36);
+  const g = scene.add.graphics().setDepth(CHAR_SELECT_DEPTH.centerGlow);
+  g.fillStyle(p1Accent, 0.14);
+  g.fillCircle(x - 72, y - 40, 88);
+  g.fillStyle(p2Accent, 0.14);
+  g.fillCircle(x + 72, y - 40, 88);
+  g.fillStyle(0xffffff, 0.06);
+  g.fillCircle(x, y - 40, 28);
   return g;
+}
+
+/** Faction label strip — sits above the roster column, never over portraits. */
+export function drawFactionBanner(scene, side, text, accent, playerLabel) {
+  const isLeft = side === 'left';
+  const cx = isLeft ? 132 : GAME_WIDTH - 132;
+  const d = CHAR_SELECT_DEPTH.factionBanner;
+  const g = scene.add.graphics().setDepth(d);
+  const w = 220;
+  const h = 46;
+  const x = cx - w / 2;
+  const y = 100;
+
+  g.fillStyle(accent, 0.14);
+  g.fillRoundedRect(x, y, w, h, 4);
+  g.lineStyle(2, accent, 0.55);
+  g.strokeRoundedRect(x, y, w, h, 4);
+  g.lineStyle(3, accent, 0.85);
+  g.lineBetween(x + 8, y + 6, x + w - 8, y + 6);
+
+  const title = factionHeader(scene, cx, y + 16, text, accent, 'center');
+  title.setDepth(d + 1);
+  const sub = label(scene, cx, y + 32, playerLabel, {
+    fontSize: '9px',
+    color: UI.textDim,
+    letterSpacing: 2,
+    depth: d + 1,
+  });
+  return { g, title, sub };
 }
 
 export function factionHeader(scene, x, y, text, accent, align = 'center') {
   return scene.add.text(x, y, text, {
     fontFamily: UI.font,
-    fontSize: '15px',
+    fontSize: '14px',
     color: rgba(accent),
     fontStyle: 'italic',
     stroke: '#000000',
     strokeThickness: 5,
-    letterSpacing: 4,
-  }).setOrigin(align === 'left' ? 0 : align === 'right' ? 1 : 0.5, 0.5).setDepth(12);
+    letterSpacing: 3,
+  }).setOrigin(align === 'left' ? 0 : align === 'right' ? 1 : 0.5, 0.5);
 }
 
 export function pickShardIndices(rosterLen, side) {

@@ -356,8 +356,7 @@ export function comicTitle(scene, x, y, text, opts = {}) {
 }
 
 /** Pulsing VS badge for character select */
-export function holographicVsBadge(scene, x, y) {
-  const depth = 12;
+export function holographicVsBadge(scene, x, y, depth = 12) {
   const glow = scene.add.ellipse(x, y, 96, 96, UI.gold, 0.18).setDepth(depth - 1);
   const ring = scene.add.ellipse(x, y, 78, 78, 0x000000, 0).setDepth(depth - 1);
   ring.setStrokeStyle(3, UI.gold, 0.85);
