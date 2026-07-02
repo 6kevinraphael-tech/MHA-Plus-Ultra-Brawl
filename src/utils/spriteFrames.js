@@ -290,6 +290,18 @@ export function addPortraitToBox(scene, container, character, x, y, boxW, boxH) 
   return portrait;
 }
 
+/** Soft panel behind full-body standees so dark costumes stay visible. */
+export function createStandeeBackdrop(scene, x, y, boxH, depth = 5) {
+  return scene.add.ellipse(
+    x,
+    y - boxH * 0.48,
+    Math.round(boxH * 0.52),
+    Math.round(boxH * 0.9),
+    0xe4dcf5,
+    0.22,
+  ).setDepth(depth);
+}
+
 /** Full-body standee for character select center clash. */
 export function createSelectStandee(scene, x, y, character, flipX = false, boxH = 300) {
   if (!hasImageSprites(character.id)) return null;

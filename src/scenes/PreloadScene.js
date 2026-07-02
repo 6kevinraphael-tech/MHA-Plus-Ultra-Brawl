@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { applySmoothFilter, makeSheetTransparent } from '../data/spriteSheets.js';
+import { applySmoothFilter, makeSheetTransparent, solidifyCharacterImageAlpha } from '../data/spriteSheets.js';
 import { registerPortraitFrames } from '../data/portraitFrames.js';
 import { registerBattleFrames } from '../data/battleFrames.js';
 import {
@@ -140,6 +140,10 @@ export class PreloadScene extends Phaser.Scene {
   finalizeAssets() {
     for (const [key] of FILTER_KEYS) {
       if (this.textures.exists(key)) applySmoothFilter(this, key);
+    }
+
+    for (const [key] of CHARACTER_IMAGE_ASSETS) {
+      if (this.textures.exists(key)) solidifyCharacterImageAlpha(this, key);
     }
 
     for (const [key] of SPRITE_ASSETS) {

@@ -69,6 +69,9 @@ export class Fighter {
     this.body = scene.add.container(x, GROUND_Y);
 
     this.shadow = scene.add.ellipse(0, 2, 50, 12, 0x000000, 0.42);
+    this.spritePlate = this.usesImageArt
+      ? scene.add.ellipse(0, -72, 88, 148, 0xe8e0f8, 0.12)
+      : null;
     this.aura = scene.add.ellipse(0, -55, 70, 90, config.auraColor, this.usesImageArt ? 0 : 0.12);
     this.sprite = createCharacterSpriteInContainer(scene, this.body, 0, 0, config, 'idle', 0, this.activeForm);
     if (!this.sprite) {
@@ -83,7 +86,7 @@ export class Fighter {
     this.glowRing.setStrokeStyle(1, config.auraColor, 0);
     if (this.usesImageArt) this.glowRing.setVisible(false);
 
-    this.body.add([this.shadow, this.aura, this.glowRing]);
+    this.body.add([this.shadow, this.spritePlate, this.aura, this.glowRing].filter(Boolean));
 
     scene.physics.add.existing(this.body);
     const physicsBody = this.body.body;

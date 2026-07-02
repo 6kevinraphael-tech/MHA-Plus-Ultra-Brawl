@@ -9,6 +9,7 @@ import {
 import {
   addPortraitToBox,
   createSelectStandee,
+  createStandeeBackdrop,
   updateSelectStandee,
 } from '../utils/spriteFrames.js';
 import { SFX } from '../utils/audio.js';
@@ -160,6 +161,8 @@ export class CharacterSelectScene extends Phaser.Scene {
     this.p1Shards = this.buildRosterPanel(this.p1Roster, 'left', this.p1Palette.main, this.p1Layout, 1);
     this.p2Shards = this.buildRosterPanel(this.p2Roster, 'right', this.p2Palette.main, this.p2Layout, 2);
 
+    this.p1StandeePlate = createStandeeBackdrop(this, P1_STANDEE_X, CENTER_Y, STANDEE_H, 5);
+    this.p2StandeePlate = createStandeeBackdrop(this, P2_STANDEE_X, CENTER_Y, STANDEE_H, 5);
     this.p1Standee = createSelectStandee(this, P1_STANDEE_X, CENTER_Y, this.p1Roster[0], false, STANDEE_H);
     this.p2Standee = createSelectStandee(this, P2_STANDEE_X, CENTER_Y, this.p2Roster[0], true, STANDEE_H);
     if (this.p1Standee) this.p1Standee.setDepth(6);

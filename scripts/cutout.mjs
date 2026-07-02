@@ -102,52 +102,49 @@ function cutout({ w, h, data }, tol) {
   bg[0] /= 4; bg[1] /= 4; bg[2] /= 4;
 
   const total = w * h;
-  const isBg = new Uint8Array(total); // 1 = background
-  const stack = [];
+  const core = new Uint8Array(total);
+  const fg = new Uint8Array(total);
+  const coreTol = tol * 0.38;
 
-  const pushIf = (x, y) => {
-    if (x < 0 || y < 0 || x >= w || y >= h) return;
-    const p = y * w + x;
-    if (isBg[p]) return;
-    if (dist(data, p * 4, bg) <= tol) { isBg[p] = 1; stack.push(p); }
-  };
-
-  for (let x = 0; x < w; x += 1) { pushIf(x, 0); pushIf(x, h - 1); }
-  for (let y = 0; y < h; y += 1) { pushIf(0, y); pushIf(w - 1, y); }
-
-  while (stack.length) {
-    const p = stack.pop();
-    const x = p % w;
-    const y = (p - x) / w;
-    pushIf(x + 1, y); pushIf(x - 1, y); pushIf(x, y + 1); pushIf(x, y - 1);
+  // Seed from pixels that clearly aren't the backdrop (face, skin, bright costume).
+  for (let p = 0; p < total; p += 1) {
+    if (dist(data, p * 4, bg) > coreTol) core[p] = 1;
   }
 
-  // apply transparency + feather edge (anti-alias halo) + despill
-  const feather = tol * 1.15;
-  for (let p = 0; p < total; p += 1) {
-    const i = p * 4;
-    if (isBg[p]) { data[i + 3] = 0; continue; }
-
-    const x = p % w;
-    const y = (p - x) / w;
-    const nearBg = (isBg[p - 1] || isBg[p + 1] || isBg[p - w] || isBg[p + w]);
-    if (nearBg) {
-      const d = dist(data, i, bg);
-      if (d < feather) {
-        data[i + 3] = Math.round(Math.max(0, Math.min(1, d / feather)) * 255);
+  // Grow outward from the figure so dark hoodies / suits stay attached to the body.
+  fg.set(core);
+  const dilatePasses = Math.max(16, Math.round(Math.min(w, h) * 0.045));
+  for (let pass = 0; pass < dilatePasses; pass += 1) {
+    const snap = Uint8Array.from(fg);
+    for (let y = 1; y < h - 1; y += 1) {
+      for (let x = 1; x < w - 1; x += 1) {
+        const p = y * w + x;
+        if (snap[p]) continue;
+        if (dist(data, p * 4, bg) > tol * 1.08) continue;
+        let near = false;
+        for (let dy = -1; dy <= 1 && !near; dy += 1) {
+          for (let dx = -1; dx <= 1; dx += 1) {
+            if (!dx && !dy) continue;
+            if (snap[(y + dy) * w + (x + dx)]) { near = true; break; }
+          }
+        }
+        if (near) fg[p] = 1;
       }
-      // despill: pull color slightly away from bg tint on the fringe
-      data[i] = Math.round((data[i] - bg[0] * 0.25) / 0.75);
-      data[i + 1] = Math.round((data[i + 1] - bg[1] * 0.25) / 0.75);
-      data[i + 2] = Math.round((data[i + 2] - bg[2] * 0.25) / 0.75);
     }
   }
 
-  // drop tiny disconnected foreground blobs (VFX smears / leftover bg chips)
-  pruneForegroundBlobs(data, w, h);
+  // Hard matte — no semi-transparent fringe (that reads as faded / disappearing).
+  for (let p = 0; p < total; p += 1) {
+    const i = p * 4;
+    if (!fg[p]) {
+      data[i + 3] = 0;
+      continue;
+    }
+    data[i + 3] = 255;
+  }
 
-  // Restore any interior holes left by aggressive dark-pixel stripping.
-  fillInteriorHoles(data, w, h);
+  pruneForegroundBlobs(data, w, h);
+  fillInteriorHoles(data, w, h, 48);
 
   // bounding box of opaque content
   let minX = w, minY = h, maxX = 0, maxY = 0;
@@ -161,7 +158,11 @@ function cutout({ w, h, data }, tol) {
   }
 
   if (minX <= maxX) {
-    solidifySilhouette(data, w, h, minX, minY, maxX, maxY, 5);
+    solidifySilhouette(data, w, h, minX, minY, maxX, maxY, 6);
+    fillInteriorHoles(data, w, h, 32);
+    solidifySilhouette(data, w, h, minX, minY, maxX, maxY, 4);
+    enforceOpaqueFill(data, w, h);
+    punchContrast(data, w, h);
   }
 
   // recompute bounds after solidify
@@ -301,6 +302,28 @@ function solidifySilhouette(data, w, h, minX, minY, maxX, maxY, passes = 4) {
   }
 }
 
+/** Force every visible pixel fully opaque so scaled sprites don't look washed out. */
+function enforceOpaqueFill(data, w, h, minAlpha = 18) {
+  const total = w * h;
+  for (let p = 0; p < total; p += 1) {
+    const i = p * 4;
+    if (data[i + 3] >= minAlpha) data[i + 3] = 255;
+  }
+}
+
+/** Slight contrast boost on opaque pixels so costumes read bold in battle. */
+function punchContrast(data, w, h, amount = 1.1) {
+  const total = w * h;
+  for (let p = 0; p < total; p += 1) {
+    const i = p * 4;
+    if (data[i + 3] < 128) continue;
+    for (let c = 0; c < 3; c += 1) {
+      const v = (data[i + c] - 128) * amount + 128;
+      data[i + c] = Math.max(0, Math.min(255, Math.round(v)));
+    }
+  }
+}
+
 /** Fill transparent pixels enclosed by the figure (fixes dark-clothing punch-through). */
 function fillInteriorHoles(data, w, h, clearMax = 16) {
   const total = w * h;
@@ -376,4 +399,48 @@ for (const job of JOBS) {
   fs.mkdirSync(path.dirname(outPath), { recursive: true });
   fs.writeFileSync(outPath, PNG.sync.write(png));
   console.log(`${job.out}  ${img.w}x${img.h} -> ${cw}x${ch}  bg=[${bg.map((n) => Math.round(n)).join(',')}]`);
+}
+
+function loadPng(file) {
+  const p = PNG.sync.read(fs.readFileSync(file));
+  return { w: p.width, h: p.height, data: Uint8ClampedArray.from(p.data) };
+}
+
+/** Flatten existing cutout PNG onto black so re-cutout can detect the backdrop. */
+function compositeOnBlack({ w, h, data }) {
+  const out = new Uint8ClampedArray(w * h * 4);
+  for (let p = 0; p < w * h; p += 1) {
+    const i = p * 4;
+    const a = data[i + 3] / 255;
+    out[i] = Math.round(data[i] * a);
+    out[i + 1] = Math.round(data[i + 1] * a);
+    out[i + 2] = Math.round(data[i + 2] * a);
+    out[i + 3] = 255;
+  }
+  return { w, h, data: out };
+}
+
+function walkPngs(dir, files = []) {
+  for (const ent of fs.readdirSync(dir, { withFileTypes: true })) {
+    const p = path.join(dir, ent.name);
+    if (ent.isDirectory()) walkPngs(p, files);
+    else if (ent.name.endsWith('.png')) files.push(p);
+  }
+  return files;
+}
+
+const jobOuts = new Set(JOBS.map((j) => path.join(OUT, j.out)));
+const mhaRoot = path.join(OUT, 'mha');
+if (fs.existsSync(mhaRoot)) {
+  for (const outPath of walkPngs(mhaRoot)) {
+    if (jobOuts.has(outPath)) continue;
+    try {
+      const flat = compositeOnBlack(loadPng(outPath));
+      const { png, cw, ch } = cutout(flat, 48);
+      fs.writeFileSync(outPath, PNG.sync.write(png));
+      console.log(`[in-place] ${path.relative(OUT, outPath)} -> ${cw}x${ch}`);
+    } catch (e) {
+      console.warn(`[skip] ${path.relative(OUT, outPath)}: ${e.message}`);
+    }
+  }
 }
