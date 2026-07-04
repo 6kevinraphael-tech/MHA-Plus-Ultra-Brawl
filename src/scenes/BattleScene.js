@@ -77,8 +77,6 @@ export class BattleScene extends Phaser.Scene {
     ensureSceneVisible(this);
     this.cameras.main.setAlpha(1);
     this.cameras.main.setZoom(1);
-    this.tweens.timeScale = 1;
-    this.physics.world.timeScale = 1;
 
     if (!this.p1Config || !this.p2Config) {
       safeSceneStart(this, 'CharacterSelectScene', {}, { fadeMs: 0 });
@@ -91,6 +89,9 @@ export class BattleScene extends Phaser.Scene {
 
   buildFight() {
     if (!this.p1Config || !this.p2Config) return;
+
+    this.tweens.timeScale = 1;
+    this.physics.world.timeScale = 1;
 
     drawArena(this, this.arena);
     this.createGround();
@@ -146,6 +147,9 @@ export class BattleScene extends Phaser.Scene {
         sendOnline('state', { state: serializeBattleState(this) });
       });
     }
+    if (this.isOnlineGuest) {
+      sendOnline('request_state', {});
+    }
   }
 
   createGround() {
@@ -170,6 +174,9 @@ export class BattleScene extends Phaser.Scene {
     if (this.isOnlineHost) {
       this._onlineUnsubs.push(onOnlineEvent('relay:input', (msg) => {
         this.p2Input?.setRemote?.(msg.controls);
+      }));
+      this._onlineUnsubs.push(onOnlineEvent('relay:request_state', () => {
+        sendOnline('state', { state: serializeBattleState(this) });
       }));
       this._onlineUnsubs.push(onOnlineEvent('peer_left', () => this.onPeerDisconnected()));
     }

@@ -9,6 +9,7 @@ import { BattleScene } from './scenes/BattleScene.js';
 import { GAME_WIDTH, GAME_HEIGHT } from './data/characters.js';
 import { focusGameCanvas } from './utils/gameInput.js';
 import { resumeAudio, ensureGameMusic, initYouTubeMusic } from './utils/audio.js';
+import { installOnlineNavigation } from './utils/onlineNavigation.js';
 
 const config = {
   type: Phaser.AUTO,
@@ -64,7 +65,10 @@ function bootGame() {
 
   const game = new Phaser.Game(config);
   window.__game = game;
-  game.events.once('ready', () => bindGameEvents(game));
+  game.events.once('ready', () => {
+    bindGameEvents(game);
+    installOnlineNavigation(game);
+  });
   return game;
 }
 

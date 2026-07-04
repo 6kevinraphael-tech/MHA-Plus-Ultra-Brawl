@@ -29,6 +29,7 @@ import {
   drawCharSelectTitle,
   drawFactionBanner,
   CHAR_SELECT_DEPTH,
+  CHAR_SELECT_LAYOUT,
   getRosterLayout,
   setShardSelected,
   SLOTS_PER_PAGE,
@@ -44,11 +45,7 @@ import {
   leaveOnlineRoom,
 } from '../utils/onlineSession.js';
 
-const STAGE_FLOOR_Y = 478;
-const P1_STANDEE_X = 350;
-const P2_STANDEE_X = GAME_WIDTH - 350;
-const STANDEE_H = 320;
-const ROSTER_SCROLL_X = { left: 132, right: GAME_WIDTH - 132 };
+const L = CHAR_SELECT_LAYOUT;
 
 export class CharacterSelectScene extends Phaser.Scene {
   constructor() {
@@ -69,18 +66,23 @@ export class CharacterSelectScene extends Phaser.Scene {
     this.p2Confirmed = false;
     this.p1Scroll = 0;
     this.p2Scroll = 0;
-    this.mode = this.registry.get('mode') ?? '2p';
-    this.onlineRole = data?.onlineRole ?? this.registry.get('onlineRole') ?? null;
+    this.mode = data.mode ?? this.registry.get('mode') ?? '2p';
+    if (this.mode === 'online') this.registry.set('mode', 'online');
+    this.onlineRole = data.onlineRole ?? this.registry.get('onlineRole') ?? null;
     this.isOnline = this.mode === 'online';
     if (this.isOnline) this.registry.set('onlineRole', this.onlineRole);
     this.difficulty = this.registry.get('difficulty') ?? 'normal';
-    this.playerSide = this.registry.get('playerSide') ?? 'hero';
+    this.hostSide = data.hostSide ?? this.registry.get('hostSide') ?? this.registry.get('playerSide') ?? 'hero';
+    this.guestSide = data.guestSide ?? this.registry.get('guestSide') ?? getOpposingFaction(this.hostSide);
+    this.registry.set('hostSide', this.hostSide);
+    this.registry.set('guestSide', this.guestSide);
+    this.playerSide = this.hostSide;
     this.arcadeRun = this.registry.get('arcadeRun') ?? null;
 
-    this.p1Roster = getRosterForFaction(this.playerSide);
-    this.p2Roster = getRosterForFaction(getOpposingFaction(this.playerSide));
-    this.p1Palette = factionPalette(this.playerSide);
-    this.p2Palette = factionPalette(getOpposingFaction(this.playerSide));
+    this.p1Roster = getRosterForFaction(this.hostSide);
+    this.p2Roster = getRosterForFaction(this.guestSide);
+    this.p1Palette = factionPalette(this.hostSide);
+    this.p2Palette = factionPalette(this.guestSide);
     this.p1Layout = getRosterLayout(this.p1Roster.length, 'left');
     this.p2Layout = getRosterLayout(this.p2Roster.length, 'right');
   }
@@ -93,31 +95,31 @@ export class CharacterSelectScene extends Phaser.Scene {
 
     drawCharSelectBackground(this);
     drawCharSelectTitle(this);
-    drawCenterClashGlow(this, GAME_WIDTH / 2, STAGE_FLOOR_Y - 150, this.p1Palette.main, this.p2Palette.main);
+    drawCenterClashGlow(this, GAME_WIDTH / 2, L.stageFloorY - 148, this.p1Palette.main, this.p2Palette.main);
 
-    this.vsBadge = holographicVsBadge(this, GAME_WIDTH / 2, STAGE_FLOOR_Y - 175, CHAR_SELECT_DEPTH.vsBadge);
+    this.vsBadge = holographicVsBadge(this, GAME_WIDTH / 2, L.stageFloorY - 168, CHAR_SELECT_DEPTH.vsBadge);
 
     drawFactionBanner(
       this,
       'left',
-      factionLabel(this.playerSide),
+      factionLabel(this.hostSide),
       this.p1Palette.main,
       'PLAYER 1',
     );
     drawFactionBanner(
       this,
       'right',
-      factionLabel(getOpposingFaction(this.playerSide)),
+      factionLabel(this.guestSide),
       this.p2Palette.main,
       this.mode === '1p' ? 'CPU' : 'PLAYER 2',
     );
 
     this.infoPanel = this.createInfoPanel();
-    this.hintText = label(this, GAME_WIDTH / 2, GAME_HEIGHT - 52, '', {
-      fontSize: '11px',
+    this.hintText = label(this, GAME_WIDTH / 2, L.hintY, '', {
+      fontSize: '10px',
       color: UI.text,
       align: 'center',
-      wordWrap: { width: 520 },
+      wordWrap: { width: 480 },
       depth: CHAR_SELECT_DEPTH.footer,
       stroke: '#000000',
       strokeThickness: 3,
@@ -130,17 +132,17 @@ export class CharacterSelectScene extends Phaser.Scene {
       : this.mode === '1p'
         ? 'Click a fighter · ENTER or CONFIRM to lock in'
         : 'Click roster · ENTER or CONFIRM each pick';
-    label(this, GAME_WIDTH / 2, GAME_HEIGHT - 30, ctrlLine, {
-      fontSize: '9px', color: UI.textMuted, letterSpacing: 1, depth: CHAR_SELECT_DEPTH.footer,
+    label(this, GAME_WIDTH / 2, L.ctrlY, ctrlLine, {
+      fontSize: '8px', color: UI.textMuted, letterSpacing: 1, depth: CHAR_SELECT_DEPTH.footer,
     });
 
-    this.confirmBtn = createClickButton(this, GAME_WIDTH / 2, GAME_HEIGHT - 72, 'CONFIRM', () => {
+    this.confirmBtn = createClickButton(this, GAME_WIDTH / 2, L.confirmY, 'CONFIRM', () => {
       this.confirmSelection();
-    }, { width: 140, height: 40, depth: 22 });
+    }, { width: 132, height: 36, depth: CHAR_SELECT_DEPTH.footer });
 
-    createClickButton(this, 56, GAME_HEIGHT - 72, 'BACK', () => {
+    createClickButton(this, L.backX, L.confirmY, 'BACK', () => {
       safeSceneStart(this, 'MenuScene', {}, { fadeMs: 200 });
-    }, { width: 90, height: 36, depth: 22, sfx: 'move' });
+    }, { width: 84, height: 34, depth: CHAR_SELECT_DEPTH.footer, sfx: 'move' });
 
     ensureGameMusic();
     focusGameCanvas(this.game);
@@ -152,7 +154,6 @@ export class CharacterSelectScene extends Phaser.Scene {
     if (this.isOnline) {
       this._onlineUnsubs.push(onOnlineEvent('relay:pick', (msg) => this.onRemotePick(msg)));
       this._onlineUnsubs.push(onOnlineEvent('relay:confirm', (msg) => this.onRemoteConfirm(msg)));
-      this._onlineUnsubs.push(onOnlineEvent('relay:goto_stage', (msg) => this.onGotoStage(msg)));
       this._onlineUnsubs.push(onOnlineEvent('peer_left', () => {
         this.hintText?.setText('Opponent disconnected — returning to menu');
         this.time.delayedCall(1200, () => {
@@ -170,10 +171,10 @@ export class CharacterSelectScene extends Phaser.Scene {
     this.p1Shards = this.buildRosterPanel(this.p1Roster, 'left', this.p1Palette.main, this.p1Layout, 1);
     this.p2Shards = this.buildRosterPanel(this.p2Roster, 'right', this.p2Palette.main, this.p2Layout, 2);
 
-    this.p1StandeePlate = createStandeeBackdrop(this, P1_STANDEE_X, STAGE_FLOOR_Y, STANDEE_H, CHAR_SELECT_DEPTH.standeeBackdrop);
-    this.p2StandeePlate = createStandeeBackdrop(this, P2_STANDEE_X, STAGE_FLOOR_Y, STANDEE_H, CHAR_SELECT_DEPTH.standeeBackdrop);
-    this.p1Standee = createSelectStandee(this, P1_STANDEE_X, STAGE_FLOOR_Y, this.p1Roster[0], false, STANDEE_H);
-    this.p2Standee = createSelectStandee(this, P2_STANDEE_X, STAGE_FLOOR_Y, this.p2Roster[0], true, STANDEE_H);
+    this.p1StandeePlate = createStandeeBackdrop(this, L.standeeX.p1, L.stageFloorY, L.standeeH, CHAR_SELECT_DEPTH.standeeBackdrop);
+    this.p2StandeePlate = createStandeeBackdrop(this, L.standeeX.p2, L.stageFloorY, L.standeeH, CHAR_SELECT_DEPTH.standeeBackdrop);
+    this.p1Standee = createSelectStandee(this, L.standeeX.p1, L.stageFloorY, this.p1Roster[0], false, L.standeeH);
+    this.p2Standee = createSelectStandee(this, L.standeeX.p2, L.stageFloorY, this.p2Roster[0], true, L.standeeH);
     if (this.p1Standee) this.p1Standee.setDepth(CHAR_SELECT_DEPTH.standee);
     if (this.p2Standee) this.p2Standee.setDepth(CHAR_SELECT_DEPTH.standee);
 
@@ -229,14 +230,14 @@ export class CharacterSelectScene extends Phaser.Scene {
       entries.push(this.buildShardEntry(roster[rosterIndex], rosterIndex, slot, side, accent, true));
     }
 
-    const cx = side === 'left' ? ROSTER_SCROLL_X.left : ROSTER_SCROLL_X.right;
+    const cx = side === 'left' ? L.rosterScrollX.left : L.rosterScrollX.right;
     const canScrollUp = scroll > 0;
     const canScrollDown = scroll + pageSize < roster.length;
-    this.drawScrollButton(cx, 158, 'up', canScrollUp, () => {
+    this.drawScrollButton(cx, L.rosterScrollY.up, 'up', canScrollUp, () => {
       this[scrollKey] = Math.max(0, scroll - pageSize);
       this.refreshGridPanel(playerNum);
     });
-    this.drawScrollButton(cx, 430, 'down', canScrollDown, () => {
+    this.drawScrollButton(cx, L.rosterScrollY.down, 'down', canScrollDown, () => {
       this[scrollKey] = Math.min(roster.length - pageSize, scroll + pageSize);
       if (this[scrollKey] < 0) this[scrollKey] = 0;
       this.refreshGridPanel(playerNum);
@@ -247,8 +248,8 @@ export class CharacterSelectScene extends Phaser.Scene {
 
   buildShardEntry(char, rosterIndex, slot, side, accent, isGrid) {
     const shard = isGrid
-      ? createGridSlot(this, slot, side, accent, 18)
-      : createShardSlot(this, slot, side, accent, 18);
+      ? createGridSlot(this, slot, side, accent, CHAR_SELECT_DEPTH.rosterShard)
+      : createShardSlot(this, slot, side, accent, CHAR_SELECT_DEPTH.rosterShard);
 
     const portraitX = isGrid ? slot.w * 0.5 : (side === 'left' ? slot.w * 0.55 : slot.w * 0.45);
     const portraitY = isGrid ? slot.h * 0.4 : slot.h * 0.44;
@@ -292,7 +293,7 @@ export class CharacterSelectScene extends Phaser.Scene {
 
     if (!this._scrollHints) this._scrollHints = {};
     this._scrollHints[key] = createClickButton(this, x, y, direction === 'up' ? '▲ MORE' : '▼ MORE', onClick, {
-      width: 72, height: 28, fontSize: '9px', depth: 14, sfx: 'move',
+      width: 68, height: 24, fontSize: '8px', depth: CHAR_SELECT_DEPTH.rosterShard + 1, sfx: 'move',
     });
   }
 
@@ -354,18 +355,20 @@ export class CharacterSelectScene extends Phaser.Scene {
   }
 
   createInfoPanel() {
-    const y = STAGE_FLOOR_Y + 8;
-    const panel = this.add.rectangle(GAME_WIDTH / 2, y, 420, 52, 0x000000, 0.62).setDepth(CHAR_SELECT_DEPTH.infoPanel);
+    const y = L.infoPanelY;
+    const panel = this.add.rectangle(GAME_WIDTH / 2, y, 400, L.infoPanelH, 0x000000, 0.62).setDepth(CHAR_SELECT_DEPTH.infoPanel);
     panel.setStrokeStyle(2, UI.gold, 0.55);
 
     const name = label(this, GAME_WIDTH / 2, y - 10, '', {
-      fontSize: '17px', color: UI.text, fontFamily: UI.font, fontStyle: 'italic', depth: CHAR_SELECT_DEPTH.infoPanel + 1,
+      fontSize: '15px', color: UI.text, fontFamily: UI.font, fontStyle: 'italic', depth: CHAR_SELECT_DEPTH.infoPanel + 1,
     });
-    const special = label(this, GAME_WIDTH / 2, y + 8, '', {
-      fontSize: '10px', color: UI.goldText, depth: CHAR_SELECT_DEPTH.infoPanel + 1,
+    const special = label(this, GAME_WIDTH / 2, y + 4, '', {
+      fontSize: '9px', color: UI.goldText, depth: CHAR_SELECT_DEPTH.infoPanel + 1,
     });
-    const passive = label(this, GAME_WIDTH / 2, y + 22, '', {
-      fontSize: '9px', color: UI.textMuted, depth: CHAR_SELECT_DEPTH.infoPanel + 1,
+    const passive = label(this, GAME_WIDTH / 2, y + 15, '', {
+      fontSize: '8px', color: UI.textMuted, depth: CHAR_SELECT_DEPTH.infoPanel + 1,
+      align: 'center',
+      wordWrap: { width: 360 },
     });
 
     return { name, special, passive };
@@ -410,8 +413,8 @@ export class CharacterSelectScene extends Phaser.Scene {
     const p1Char = this.p1Roster[this.p1Index];
     const p2Char = this.p2Roster[this.p2Index];
 
-    if (this.p1Standee) updateSelectStandee(this.p1Standee, p1Char, false, STANDEE_H);
-    if (this.p2Standee) updateSelectStandee(this.p2Standee, p2Char, true, STANDEE_H);
+    if (this.p1Standee) updateSelectStandee(this.p1Standee, p1Char, false, L.standeeH);
+    if (this.p2Standee) updateSelectStandee(this.p2Standee, p2Char, true, L.standeeH);
 
     const focus = !this.p1Confirmed ? p1Char : p2Char;
     const accent = !this.p1Confirmed ? this.p1Palette.main : this.p2Palette.main;
@@ -452,15 +455,36 @@ export class CharacterSelectScene extends Phaser.Scene {
     }
   }
 
-  onGotoStage(msg) {
-    if (this._transitioning) return;
-    safeSceneStart(this, 'StageSelectScene', {
-      p1: msg.p1,
-      p2: msg.p2,
-      mode: 'online',
-      playerSide: msg.playerSide,
+  launch() {
+    if (this._transitioning) resetSceneTransition(this);
+    const p1Char = this.p1Roster[this.p1Index];
+    const p2Char = this.p2Roster[this.p2Index];
+
+    const payload = {
+      p1: p1Char.id,
+      p2: p2Char.id,
+      mode: this.mode,
+      difficulty: this.difficulty,
+      playerSide: this.hostSide,
+      hostSide: this.hostSide,
+      guestSide: this.guestSide,
       onlineRole: this.onlineRole,
-    }, { fadeMs: 180 });
+      arcade: this.arcadeRun
+        ? { ladder: this.arcadeRun.ladder, stageIndex: this.arcadeRun.stageIndex ?? 0 }
+        : null,
+    };
+
+    if (this.isOnline && isOnlineHost()) {
+      sendOnline('goto_stage', {
+        p1: p1Char.id,
+        p2: p2Char.id,
+        playerSide: this.hostSide,
+        hostSide: this.hostSide,
+        guestSide: this.guestSide,
+      });
+    }
+
+    safeSceneStart(this, 'StageSelectScene', payload, { fadeMs: 180 });
   }
 
   confirmSelection() {
@@ -518,34 +542,6 @@ export class CharacterSelectScene extends Phaser.Scene {
       this.updateSelection();
       this.launch();
     }
-  }
-
-  launch() {
-    if (this._transitioning) resetSceneTransition(this);
-    const p1Char = this.p1Roster[this.p1Index];
-    const p2Char = this.p2Roster[this.p2Index];
-
-    const payload = {
-      p1: p1Char.id,
-      p2: p2Char.id,
-      mode: this.mode,
-      difficulty: this.difficulty,
-      playerSide: this.playerSide,
-      onlineRole: this.onlineRole,
-      arcade: this.arcadeRun
-        ? { ladder: this.arcadeRun.ladder, stageIndex: this.arcadeRun.stageIndex ?? 0 }
-        : null,
-    };
-
-    if (this.isOnline && isOnlineHost()) {
-      sendOnline('goto_stage', {
-        p1: p1Char.id,
-        p2: p2Char.id,
-        playerSide: this.playerSide,
-      });
-    }
-
-    safeSceneStart(this, 'StageSelectScene', payload, { fadeMs: 180 });
   }
 
   updateHint() {

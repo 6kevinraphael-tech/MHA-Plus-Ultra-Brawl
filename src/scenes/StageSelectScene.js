@@ -100,7 +100,6 @@ export class StageSelectScene extends Phaser.Scene {
 
     if (this.isOnline && !isOnlineHost()) {
       this._onlineUnsubs = [
-        onOnlineEvent('relay:goto_battle', (msg) => this.onGotoBattle(msg)),
         onOnlineEvent('peer_left', () => {
           leaveOnlineRoom();
           safeSceneStart(this, 'MenuScene', {}, { fadeMs: 200 });
@@ -195,15 +194,6 @@ export class StageSelectScene extends Phaser.Scene {
     }
 
     safeSceneStart(this, 'BattleScene', payload, { fadeMs: 350 });
-  }
-
-  onGotoBattle(msg) {
-    if (this._transitioning) return;
-    this.registry.set('stageId', msg.stageId);
-    safeSceneStart(this, 'BattleScene', {
-      ...msg,
-      onlineRole: 'guest',
-    }, { fadeMs: 350 });
   }
 
   shutdown() {
