@@ -12,7 +12,7 @@ import {
   setOnlineRelayUrl,
 } from '../utils/onlineSession.js';
 import { SFX, ensureGameMusic } from '../utils/audio.js';
-import { comicTitle, label, rgba, UI } from '../utils/uiTheme.js';
+import { comicTitle, label, rgba, UI, coverImage } from '../utils/uiTheme.js';
 import { resetSceneTransition, safeSceneStart, ensureSceneVisible } from '../utils/sceneTransition.js';
 import { createClickButton } from '../utils/uiButtons.js';
 import { bindClickToFocus, focusGameCanvas } from '../utils/gameInput.js';
@@ -42,7 +42,12 @@ export class OnlineLobbyScene extends Phaser.Scene {
     ensureSceneVisible(this);
     this.cameras.main.setAlpha(1);
 
-    this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x06080f).setDepth(-10);
+    coverImage(this, 'ui-online-lobby', -100, 1);
+
+    const shade = this.add.graphics().setDepth(-95);
+    shade.fillGradientStyle(0x000000, 0x000000, 0x000000, 0x000000, 0.05, 0.12, 0.78, 0.9);
+    shade.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+
     comicTitle(this, GAME_WIDTH / 2, 48, 'ONLINE VS', { size: 40, color: UI.goldText, depth: 5 });
     label(this, GAME_WIDTH / 2, 82, 'Pick HEROES or VILLAINS · host starts the match when ready', {
       fontSize: '11px', color: UI.textMuted, depth: 5,
