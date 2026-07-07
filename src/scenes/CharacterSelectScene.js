@@ -37,6 +37,7 @@ import {
   SLOTS_PER_PAGE,
 } from '../utils/characterSelectUi.js';
 import { resetSceneTransition, safeSceneStart, ensureSceneVisible, beginScene, transitionTo } from '../utils/sceneTransition.js';
+import { ensureDeferredAssets } from '../utils/deferredAssetLoad.js';
 import { ensureGameMusic } from '../utils/audio.js';
 import { createClickButton } from '../utils/uiButtons.js';
 import { bindClickToFocus, bindConfirmKeys, focusGameCanvas } from '../utils/gameInput.js';
@@ -119,6 +120,7 @@ export class CharacterSelectScene extends Phaser.Scene {
 
   create() {
     beginScene(this);
+    ensureDeferredAssets(this);
     this.cameras.main.setZoom(1);
 
     drawCharSelectBackground(this);

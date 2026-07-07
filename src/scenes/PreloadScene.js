@@ -1,7 +1,10 @@
 import Phaser from 'phaser';
-import { applySmoothFilter, makeSheetTransparent } from '../data/spriteSheets.js';
-import { registerPortraitFrames } from '../data/portraitFrames.js';
-import { registerBattleFrames } from '../data/battleFrames.js';
+import { applySmoothFilter } from '../data/spriteSheets.js';
+import {
+  allAssetsLoaded,
+  BOOT_ASSETS,
+  missingAssets,
+} from '../utils/assetFinalize.js';
 import {
   comicTitle,
   drawBackdrop,
@@ -12,68 +15,10 @@ import {
   UI,
 } from '../utils/uiTheme.js';
 import { GAME_WIDTH, GAME_HEIGHT } from '../data/characters.js';
-import { CHARACTER_IMAGE_ASSETS } from '../data/characterImages.js';
-import { UI_ASSETS } from '../data/uiAssets.js';
 import { resetSceneTransition } from '../utils/sceneTransition.js';
 
-const SPRITE_ASSETS = [];
-
-const BG_ASSETS = [
-  ['bg-ua-entrance', '/assets/backgrounds/ua-entrance.png'],
-  ['bg-ua-campus', '/assets/backgrounds/ua-campus.png'],
-  ['bg-city-streets', '/assets/backgrounds/city-streets.png'],
-  ['bg-dojo', '/assets/backgrounds/dojo.png'],
-  ['bg-ground-beta', '/assets/backgrounds/ground-beta.png'],
-  ['bg-forest-camp', '/assets/backgrounds/forest-camp.png'],
-];
-
-const ROSTER_ASSETS = [
-  ['mha-roster', '/assets/mha-roster.png'],
-];
-
-const CORE_ASSETS = [...UI_ASSETS, ...ROSTER_ASSETS, ...SPRITE_ASSETS, ...BG_ASSETS, ...CHARACTER_IMAGE_ASSETS];
-
-const FILTER_KEYS = [...UI_ASSETS, ...ROSTER_ASSETS, ...BG_ASSETS, ...CHARACTER_IMAGE_ASSETS];
-const MAX_LOAD_RETRIES = 3;
-const LOAD_TIMEOUT_MS = 15000;
-
-function missingAssets(scene) {
-  return CORE_ASSETS.filter(([key]) => !scene.textures.exists(key));
-}
-
-function allAssetsLoaded(scene) {
-  return missingAssets(scene).length === 0;
-}
-
-/** Fast texture setup only — never block the menu on per-pixel image baking. */
-export function quickFinalizeTextures(scene) {
-  for (const [key] of FILTER_KEYS) {
-    if (scene.textures.exists(key)) {
-      try {
-        applySmoothFilter(scene, key);
-      } catch (err) {
-        console.warn('[PreloadScene] filter failed:', key, err);
-      }
-    }
-  }
-
-  for (const [key] of SPRITE_ASSETS) {
-    if (scene.textures.exists(key)) {
-      try {
-        makeSheetTransparent(scene, key);
-      } catch (err) {
-        console.warn('[PreloadScene] transparency bake failed:', key, err);
-      }
-    }
-  }
-
-  try {
-    registerPortraitFrames(scene);
-    registerBattleFrames(scene);
-  } catch (err) {
-    console.warn('[PreloadScene] frame registration failed:', err);
-  }
-}
+const MAX_LOAD_RETRIES = 2;
+const LOAD_TIMEOUT_MS = 8000;
 
 export class PreloadScene extends Phaser.Scene {
   constructor() {
@@ -85,6 +30,7 @@ export class PreloadScene extends Phaser.Scene {
     this._retryCount = data?.retryCount ?? 0;
     this._loadBar = null;
     this._loadTimeout = null;
+    this._wallTimeout = null;
     this._menuFallbackTimer = null;
   }
 
@@ -102,15 +48,13 @@ export class PreloadScene extends Phaser.Scene {
       console.error('Failed to load asset:', file.key, file.url);
     });
 
-    for (const [key, url] of CORE_ASSETS) {
+    for (const [key, url] of BOOT_ASSETS) {
       if (!this.textures.exists(key)) {
         this.load.image(key, url);
       }
     }
 
-    if (this.load.totalToLoad > 0) {
-      this.startLoadTimeout();
-    }
+    this.startLoadTimeout();
   }
 
   create() {
@@ -118,8 +62,8 @@ export class PreloadScene extends Phaser.Scene {
     this.clearLoadTimeout();
     if (this._loadBar) setMhaLoadingBar(this._loadBar, 1);
 
-    if (this.registry.get('assetsReady') && this.registry.get('assetsFinalized') && allAssetsLoaded(this)) {
-      this.finishAndGoToMenu();
+    if (this.registry.get('menuAssetsReady')) {
+      this.goToMenu();
       return;
     }
 
@@ -146,11 +90,11 @@ export class PreloadScene extends Phaser.Scene {
   handleLoadResult() {
     if (this._finished) return;
 
-    const missing = missingAssets(this);
+    const missing = missingAssets(this, BOOT_ASSETS);
     if (missing.length > 0 && this._retryCount < MAX_LOAD_RETRIES) {
       this._retryCount += 1;
       console.warn(`Preload retry ${this._retryCount}/${MAX_LOAD_RETRIES}:`, missing.map(([k]) => k));
-      this.time.delayedCall(300, () => {
+      this.time.delayedCall(200, () => {
         if (this._finished || !this.scene.isActive('PreloadScene')) return;
         this.scene.restart({ retryCount: this._retryCount });
       });
@@ -158,7 +102,7 @@ export class PreloadScene extends Phaser.Scene {
     }
 
     if (missing.length > 0) {
-      console.error('Starting with missing assets:', missing.map(([k, u]) => `${k} → ${u}`));
+      console.error('Starting with missing menu assets:', missing.map(([k, u]) => `${k} → ${u}`));
     }
 
     this.finishAndGoToMenu();
@@ -169,13 +113,17 @@ export class PreloadScene extends Phaser.Scene {
     this._finished = true;
     this.clearLoadTimeout();
 
-    if (!this.registry.get('assetsFinalized')) {
-      quickFinalizeTextures(this);
-      this.registry.set('assetsFinalized', true);
+    for (const [key] of BOOT_ASSETS) {
+      if (this.textures.exists(key)) {
+        try {
+          applySmoothFilter(this, key);
+        } catch (err) {
+          console.warn('[PreloadScene] filter failed:', key, err);
+        }
+      }
     }
 
-    this.registry.set('assetsReady', true);
-    this.registry.set('preloadRetryCount', 0);
+    this.registry.set('menuAssetsReady', true);
     this.goToMenu();
   }
 
@@ -183,21 +131,13 @@ export class PreloadScene extends Phaser.Scene {
     resetSceneTransition(this);
 
     const launchMenu = () => {
-      if (!this.scene.isActive('PreloadScene')) return;
       this.clearMenuFallback();
+      if (!this.scene.get('MenuScene')) return;
       this.scene.start('MenuScene');
     };
 
-    // Defer past create() — Phaser can ignore scene.start() in the same frame.
-    this.time.delayedCall(50, launchMenu);
-
-    // Browser timer fallback in case the scene clock is delayed.
-    this._menuFallbackTimer = window.setTimeout(() => {
-      if (this.scene?.isActive?.('PreloadScene')) {
-        console.warn('[PreloadScene] fallback menu transition');
-        launchMenu();
-      }
-    }, 400);
+    this.time.delayedCall(16, launchMenu);
+    this._menuFallbackTimer = window.setTimeout(launchMenu, 120);
   }
 
   clearMenuFallback() {
@@ -211,14 +151,23 @@ export class PreloadScene extends Phaser.Scene {
     this.clearLoadTimeout();
     this._loadTimeout = this.time.delayedCall(LOAD_TIMEOUT_MS, () => {
       if (this._finished || !this.scene.isActive('PreloadScene')) return;
-      console.warn('[PreloadScene] load timeout — continuing to menu');
+      console.warn('[PreloadScene] load timeout — opening menu');
       this.finishAndGoToMenu();
     });
+    this._wallTimeout = window.setTimeout(() => {
+      if (this._finished || !this.scene.isActive('PreloadScene')) return;
+      console.warn('[PreloadScene] wall-clock timeout — opening menu');
+      this.finishAndGoToMenu();
+    }, LOAD_TIMEOUT_MS + 500);
   }
 
   clearLoadTimeout() {
     this._loadTimeout?.remove();
     this._loadTimeout = null;
+    if (this._wallTimeout != null) {
+      window.clearTimeout(this._wallTimeout);
+      this._wallTimeout = null;
+    }
   }
 
   shutdown() {

@@ -30,6 +30,7 @@ import {
 import { playAwakenCinematic, cleanupAwakenCinematic } from '../utils/awakenCinematic.js';
 import { createPortraitImage } from '../utils/spriteFrames.js';
 import { resetSceneTransition, safeSceneStart, ensureSceneVisible, beginScene, transitionTo } from '../utils/sceneTransition.js';
+import { ensureDeferredAssets } from '../utils/deferredAssetLoad.js';
 import { ensureGameMusic } from '../utils/audio.js';
 import { createClickButton, createButtonRow } from '../utils/uiButtons.js';
 import {
@@ -92,6 +93,7 @@ export class BattleScene extends Phaser.Scene {
 
   create() {
     beginScene(this);
+    ensureDeferredAssets(this);
     this.cameras.main.setZoom(1);
 
     if (!this.p1Config || !this.p2Config) {

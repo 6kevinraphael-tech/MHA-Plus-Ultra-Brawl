@@ -8,6 +8,7 @@ import {
 } from '../utils/uiTheme.js';
 import { SFX, resumeAudio, ensureGameMusic, toggleMute, isMuted } from '../utils/audio.js';
 import { ensureSceneVisible, resetSceneTransition, safeSceneStart } from '../utils/sceneTransition.js';
+import { ensureDeferredAssets } from '../utils/deferredAssetLoad.js';
 import { createClickButton } from '../utils/uiButtons.js';
 import { bindClickToFocus, bindConfirmKeys, focusGameCanvas } from '../utils/gameInput.js';
 import { getUnlockStats } from '../utils/unlockProgress.js';
@@ -50,6 +51,7 @@ export class MenuScene extends Phaser.Scene {
   create() {
     resetSceneTransition(this);
     ensureSceneVisible(this);
+    ensureDeferredAssets(this);
     this.modeIndex = this.registry.get('modeIndex') ?? 0;
     this.sideIndex = this.registry.get('sideIndex') ?? 0;
     this.diffIndex = this.registry.get('diffIndex') ?? 1;
