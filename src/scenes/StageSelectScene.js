@@ -15,6 +15,7 @@ import { resetSceneTransition, safeSceneStart, ensureSceneVisible } from '../uti
 import { playStageMusic } from '../utils/youtubeMusic.js';
 import { createClickButton } from '../utils/uiButtons.js';
 import { bindClickToFocus, bindConfirmKeys, focusGameCanvas } from '../utils/gameInput.js';
+import { isStageUnlocked } from '../utils/unlockProgress.js';
 import {
   isOnlineHost,
   onOnlineEvent,
@@ -124,14 +125,15 @@ export class StageSelectScene extends Phaser.Scene {
       fontSize: '10px', color: UI.textMuted, letterSpacing: 4, depth: 8,
     });
 
-    const saved = this.registry.get('stageId');
-    this.stageIndex = Math.max(0, ARENAS.findIndex((a) => a.id === saved));
+    const available = ARENAS.filter((a) => isStageUnlocked(a.id) || this.mode === 'online');
+    const savedId = this.registry.get('stageId') ?? ARENAS[0].id;
+    this.stageIndex = Math.max(0, available.findIndex((a) => a.id === savedId));
     if (this.stageIndex < 0) this.stageIndex = 0;
 
     this.stageCards = [];
-    const startX = GAME_WIDTH / 2 - (ARENAS.length * 130) / 2 + 65;
+    const startX = GAME_WIDTH / 2 - (available.length * 130) / 2 + 65;
 
-    ARENAS.forEach((arena, i) => {
+    available.forEach((arena, i) => {
       const x = startX + i * 130;
       const card = this.add.container(x, 418).setDepth(12);
       const bg = this.add.rectangle(0, 0, 118, 72, 0x0c0a12, 0.92).setStrokeStyle(2, 0xffffff, 0.35);
@@ -165,7 +167,9 @@ export class StageSelectScene extends Phaser.Scene {
   }
 
   pickStage(delta) {
-    this.stageIndex = (this.stageIndex + delta + ARENAS.length) % ARENAS.length;
+    const len = this.stageCards?.length ?? ARENAS.length;
+    if (len <= 0) return;
+    this.stageIndex = (this.stageIndex + delta + len) % len;
     SFX.uiMove();
     this.renderStages();
   }
@@ -174,7 +178,7 @@ export class StageSelectScene extends Phaser.Scene {
     if (this._transitioning) resetSceneTransition(this);
     if (this.isOnline && !isOnlineHost()) return;
 
-    const arena = ARENAS[this.stageIndex];
+    const arena = this.stageCards[this.stageIndex]?.arena ?? ARENAS[0];
     this.registry.set('stageId', arena.id);
     SFX.uiConfirm();
 

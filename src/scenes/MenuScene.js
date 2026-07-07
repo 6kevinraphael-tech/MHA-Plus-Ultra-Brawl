@@ -7,13 +7,13 @@ import {
   UI,
 } from '../utils/uiTheme.js';
 import { SFX, resumeAudio, ensureGameMusic, toggleMute, isMuted } from '../utils/audio.js';
-import { buildArcadeLadder } from '../data/arcade.js';
 import { ensureSceneVisible, resetSceneTransition, safeSceneStart } from '../utils/sceneTransition.js';
 import { createClickButton } from '../utils/uiButtons.js';
 import { bindClickToFocus, bindConfirmKeys, focusGameCanvas } from '../utils/gameInput.js';
+import { getUnlockStats } from '../utils/unlockProgress.js';
 
 const MODES = [
-  { id: 'arcade', label: 'ARCADE  ·  LADDER MODE', pill: 'ARCADE' },
+  { id: 'campaign', label: 'CAMPAIGN  ·  UNLOCK FIGHTERS', pill: 'CAMPAIGN' },
   { id: '1p', label: 'NORMAL  ·  1P vs CPU', pill: '1P NORMAL' },
   { id: '2p', label: 'VERSUS  ·  2P LOCAL', pill: '2P LOCAL' },
   { id: 'online', label: 'ONLINE  ·  VS FRIENDS', pill: 'ONLINE VS' },
@@ -106,8 +106,11 @@ export class MenuScene extends Phaser.Scene {
       this.render();
     }, { width: 100, height: 30, fontSize: '10px', depth: 15, sfx: 'move' });
 
-    label(this, MENU_LEFT, GAME_HEIGHT - 18, 'Click options · ENTER or click START', {
+    label(this, MENU_LEFT, GAME_HEIGHT - 34, 'Click options · ENTER or click START', {
       fontSize: '9px', color: UI.textDim, originX: 0, originY: 1, depth: 20,
+    });
+    this.unlockHint = label(this, MENU_LEFT, GAME_HEIGHT - 18, '', {
+      fontSize: '8px', color: UI.textMuted, originX: 0, originY: 1, depth: 20,
     });
     label(this, GAME_WIDTH - 56, GAME_HEIGHT - 18, 'Fan project', {
       fontSize: '9px', color: UI.textDim, originX: 1, originY: 1, depth: 20,
@@ -240,6 +243,13 @@ export class MenuScene extends Phaser.Scene {
     this.updatePillRow(this.diffPills, this.diffIndex, 2, diffDim);
 
     this.muteBtn.setLabel(isMuted() ? 'AUDIO OFF' : 'AUDIO ON');
+
+    const stats = getUnlockStats();
+    this.unlockHint?.setText(
+      stats.secretUnlocked
+        ? 'PLUS ULTRA — all fighters unlocked!'
+        : `Unlocked ${stats.heroes}/${stats.totalHeroes} heroes · ${stats.villains}/${stats.totalVillains} villains`,
+    );
   }
 
   start() {
@@ -253,7 +263,7 @@ export class MenuScene extends Phaser.Scene {
     if (selected === 'online') {
       this.registry.set('mode', 'online');
       this.registry.set('playerSide', SIDES[this.sideIndex].id);
-      this.registry.remove('arcadeRun');
+      this.registry.remove('campaignRun');
       this.cameras.main.flash(120, 255, 255, 255, false);
       safeSceneStart(this, 'OnlineLobbyScene', {
         playerSide: SIDES[this.sideIndex].id,
@@ -261,21 +271,25 @@ export class MenuScene extends Phaser.Scene {
       return;
     }
 
-    const isArcade = selected === 'arcade';
+    if (selected === 'campaign') {
+      this.registry.set('mode', 'campaign');
+      this.registry.set('playerSide', SIDES[this.sideIndex].id);
+      this.registry.set('difficulty', DIFFS[this.diffIndex].id);
+      this.registry.remove('campaignRun');
+      this.cameras.main.flash(120, 255, 255, 255, false);
+      safeSceneStart(this, 'CampaignScene', {
+        playerSide: SIDES[this.sideIndex].id,
+        difficulty: DIFFS[this.diffIndex].id,
+      }, { fadeMs: 350 });
+      return;
+    }
+
     const playMode = selected === '2p' ? '2p' : '1p';
 
     this.registry.set('mode', playMode);
     this.registry.set('playerSide', SIDES[this.sideIndex].id);
     this.registry.set('difficulty', DIFFS[this.diffIndex].id);
-
-    if (isArcade) {
-      this.registry.set('arcadeRun', {
-        ladder: buildArcadeLadder(SIDES[this.sideIndex].id),
-        stageIndex: 0,
-      });
-    } else {
-      this.registry.remove('arcadeRun');
-    }
+    this.registry.remove('campaignRun');
 
     this.cameras.main.flash(120, 255, 255, 255, false);
     safeSceneStart(this, 'CharacterSelectScene', {}, { fadeMs: 350 });

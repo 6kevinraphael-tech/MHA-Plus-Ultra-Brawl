@@ -5,6 +5,7 @@ import { MenuScene } from './scenes/MenuScene.js';
 import { CharacterSelectScene } from './scenes/CharacterSelectScene.js';
 import { StageSelectScene } from './scenes/StageSelectScene.js';
 import { OnlineLobbyScene } from './scenes/OnlineLobbyScene.js';
+import { CampaignScene } from './scenes/CampaignScene.js';
 import { BattleScene } from './scenes/BattleScene.js';
 import { GAME_WIDTH, GAME_HEIGHT } from './data/characters.js';
 import { focusGameCanvas } from './utils/gameInput.js';
@@ -35,7 +36,7 @@ const config = {
   pause: {
     pauseOnBlur: false,
   },
-  scene: [BootScene, PreloadScene, MenuScene, OnlineLobbyScene, CharacterSelectScene, StageSelectScene, BattleScene],
+  scene: [BootScene, PreloadScene, MenuScene, OnlineLobbyScene, CampaignScene, CharacterSelectScene, StageSelectScene, BattleScene],
 };
 
 function bindGameEvents(game) {

@@ -5,6 +5,8 @@ import {
   GAME_WIDTH,
   GAME_HEIGHT,
 } from '../data/characters.js';
+import { getOpponentConfig, getCampaignNode } from '../data/campaign.js';
+import { getUnlockedIds } from '../utils/unlockProgress.js';
 import {
   addPortraitToBox,
   createSelectStandee,
@@ -47,6 +49,11 @@ import {
 
 const L = CHAR_SELECT_LAYOUT;
 
+function filterUnlockedRoster(faction) {
+  const ids = getUnlockedIds(faction);
+  return getRosterForFaction(faction).filter((c) => ids.includes(c.id));
+}
+
 export class CharacterSelectScene extends Phaser.Scene {
   constructor() {
     super('CharacterSelectScene');
@@ -68,21 +75,44 @@ export class CharacterSelectScene extends Phaser.Scene {
     this.p2Scroll = 0;
     this.mode = data.mode ?? this.registry.get('mode') ?? '2p';
     if (this.mode === 'online') this.registry.set('mode', 'online');
+    this.isCampaign = this.mode === 'campaign';
     this.onlineRole = data.onlineRole ?? this.registry.get('onlineRole') ?? null;
     this.isOnline = this.mode === 'online';
     if (this.isOnline) this.registry.set('onlineRole', this.onlineRole);
-    this.difficulty = this.registry.get('difficulty') ?? 'normal';
-    this.hostSide = data.hostSide ?? this.registry.get('hostSide') ?? this.registry.get('playerSide') ?? 'hero';
-    this.guestSide = data.guestSide ?? this.registry.get('guestSide') ?? getOpposingFaction(this.hostSide);
-    this.registry.set('hostSide', this.hostSide);
-    this.registry.set('guestSide', this.guestSide);
-    this.playerSide = this.hostSide;
-    this.arcadeRun = this.registry.get('arcadeRun') ?? null;
+    this.difficulty = data.difficulty ?? this.registry.get('difficulty') ?? 'normal';
+    this.campaignRun = data.campaignRun ?? this.registry.get('campaignRun') ?? null;
+    if (this.campaignRun) this.registry.set('campaignRun', this.campaignRun);
 
-    this.p1Roster = getRosterForFaction(this.hostSide);
-    this.p2Roster = getRosterForFaction(this.guestSide);
+    if (this.isCampaign) {
+      this.playerSide = this.campaignRun?.side ?? data.playerSide ?? 'hero';
+      this.hostSide = this.playerSide;
+      this.guestSide = getOpposingFaction(this.playerSide);
+      this.p1Roster = filterUnlockedRoster(this.playerSide);
+      const node = this.campaignRun?.node
+        ?? getCampaignNode(this.playerSide, this.campaignRun?.stageIndex ?? 0);
+      this.campaignNode = node;
+      this.p2Roster = node ? [getOpponentConfig(node)] : [];
+      this.p2Index = 0;
+    } else if (this.isOnline) {
+      this.hostSide = data.hostSide ?? this.registry.get('hostSide') ?? this.registry.get('playerSide') ?? 'hero';
+      this.guestSide = data.guestSide ?? this.registry.get('guestSide') ?? getOpposingFaction(this.hostSide);
+      this.registry.set('hostSide', this.hostSide);
+      this.registry.set('guestSide', this.guestSide);
+      this.playerSide = this.hostSide;
+      this.p1Roster = filterUnlockedRoster(this.hostSide);
+      this.p2Roster = filterUnlockedRoster(this.guestSide);
+    } else {
+      this.playerSide = data.playerSide ?? this.registry.get('playerSide') ?? 'hero';
+      this.hostSide = this.playerSide;
+      this.guestSide = getOpposingFaction(this.playerSide);
+      this.p1Roster = filterUnlockedRoster(this.playerSide);
+      this.p2Roster = this.mode === '1p'
+        ? getRosterForFaction(getOpposingFaction(this.playerSide))
+        : filterUnlockedRoster(this.guestSide);
+    }
+
     this.p1Palette = factionPalette(this.hostSide);
-    this.p2Palette = factionPalette(this.guestSide);
+    this.p2Palette = factionPalette(this.isCampaign ? getOpposingFaction(this.playerSide) : this.guestSide);
     this.p1Layout = getRosterLayout(this.p1Roster.length, 'left');
     this.p2Layout = getRosterLayout(this.p2Roster.length, 'right');
   }
@@ -109,9 +139,11 @@ export class CharacterSelectScene extends Phaser.Scene {
     drawFactionBanner(
       this,
       'right',
-      factionLabel(this.guestSide),
+      this.isCampaign && this.campaignNode
+        ? this.p2Roster[0]?.name?.split(' ').pop()?.toUpperCase() ?? 'RIVAL'
+        : factionLabel(this.guestSide),
       this.p2Palette.main,
-      this.mode === '1p' ? 'CPU' : 'PLAYER 2',
+      this.isCampaign ? 'CPU RIVAL' : this.mode === '1p' ? 'CPU' : 'PLAYER 2',
     );
 
     this.infoPanel = this.createInfoPanel();
@@ -125,7 +157,9 @@ export class CharacterSelectScene extends Phaser.Scene {
       strokeThickness: 3,
     });
 
-    const ctrlLine = this.isOnline
+    const ctrlLine = this.isCampaign
+      ? (this.campaignNode?.intro ?? 'Pick your fighter · CONFIRM to fight')
+      : this.isOnline
       ? (isOnlineHost()
         ? 'Pick your fighter · CONFIRM · friend picks theirs'
         : 'Pick your fighter · CONFIRM · host chooses stage next')
@@ -141,7 +175,14 @@ export class CharacterSelectScene extends Phaser.Scene {
     }, { width: 132, height: 36, depth: CHAR_SELECT_DEPTH.footer });
 
     createClickButton(this, L.backX, L.confirmY, 'BACK', () => {
-      safeSceneStart(this, 'MenuScene', {}, { fadeMs: 200 });
+      if (this.isCampaign) {
+        safeSceneStart(this, 'CampaignScene', {
+          playerSide: this.playerSide,
+          difficulty: this.difficulty,
+        }, { fadeMs: 200 });
+      } else {
+        safeSceneStart(this, 'MenuScene', {}, { fadeMs: 200 });
+      }
     }, { width: 84, height: 34, depth: CHAR_SELECT_DEPTH.footer, sfx: 'move' });
 
     ensureGameMusic();
@@ -169,7 +210,16 @@ export class CharacterSelectScene extends Phaser.Scene {
 
   finishCreate() {
     this.p1Shards = this.buildRosterPanel(this.p1Roster, 'left', this.p1Palette.main, this.p1Layout, 1);
-    this.p2Shards = this.buildRosterPanel(this.p2Roster, 'right', this.p2Palette.main, this.p2Layout, 2);
+    if (this.isCampaign) {
+      this.p2Shards = [];
+      if (this.p2Roster[0]) {
+        label(this, GAME_WIDTH - 132, L.rosterScrollY.up + 20, 'LOCKED IN', {
+          fontSize: '8px', color: UI.textDim, letterSpacing: 2, depth: CHAR_SELECT_DEPTH.rosterShard + 1,
+        });
+      }
+    } else {
+      this.p2Shards = this.buildRosterPanel(this.p2Roster, 'right', this.p2Palette.main, this.p2Layout, 2);
+    }
 
     this.p1StandeePlate = createStandeeBackdrop(this, L.standeeX.p1, L.stageFloorY, L.standeeH, CHAR_SELECT_DEPTH.standeeBackdrop);
     this.p2StandeePlate = createStandeeBackdrop(this, L.standeeX.p2, L.stageFloorY, L.standeeH, CHAR_SELECT_DEPTH.standeeBackdrop);
@@ -308,6 +358,7 @@ export class CharacterSelectScene extends Phaser.Scene {
     if (isP1 && this.p1Confirmed) return;
     if (!isP1 && this.p2Confirmed) return;
     if (this.mode === '1p' && !isP1) return;
+    if (this.isCampaign && !isP1) return;
 
     const cur = isP1 ? this.p1Index : this.p2Index;
     if (cur === rosterIndex) {
@@ -469,10 +520,14 @@ export class CharacterSelectScene extends Phaser.Scene {
       hostSide: this.hostSide,
       guestSide: this.guestSide,
       onlineRole: this.onlineRole,
-      arcade: this.arcadeRun
-        ? { ladder: this.arcadeRun.ladder, stageIndex: this.arcadeRun.stageIndex ?? 0 }
-        : null,
+      campaign: this.campaignRun,
+      stageId: this.isCampaign ? this.campaignNode?.stageId : undefined,
     };
+
+    if (this.isCampaign) {
+      safeSceneStart(this, 'BattleScene', payload, { fadeMs: 300 });
+      return;
+    }
 
     if (this.isOnline && isOnlineHost()) {
       sendOnline('goto_stage', {
@@ -521,12 +576,14 @@ export class CharacterSelectScene extends Phaser.Scene {
       this.updateSelection();
       this.updateHint();
 
-      if (this.mode === '1p') {
-        const oppId = this.arcadeRun?.ladder?.[this.arcadeRun.stageIndex ?? 0];
+      if (this.mode === '1p' || this.isCampaign) {
+        const oppId = this.isCampaign
+          ? this.campaignNode?.opponent
+          : null;
         if (oppId) {
           const idx = this.p2Roster.findIndex((c) => c.id === oppId);
-          this.p2Index = idx >= 0 ? idx : Phaser.Math.Between(0, this.p2Roster.length - 1);
-        } else {
+          this.p2Index = idx >= 0 ? idx : 0;
+        } else if (!this.isCampaign) {
           this.p2Index = Phaser.Math.Between(0, this.p2Roster.length - 1);
         }
         this.p2Confirmed = true;
@@ -551,6 +608,8 @@ export class CharacterSelectScene extends Phaser.Scene {
 
     if (!this.p1Confirmed) {
       this.hintText.setText(`${char.specialDesc}  ·  ENTER or CONFIRM to lock in`);
+    } else if (this.isCampaign) {
+      this.hintText.setText('Entering battle…');
     } else if (!this.p2Confirmed && (this.mode === '2p' || this.isOnline)) {
       this.hintText.setText(this.isOnline && isOnlineHost()
         ? 'Waiting for friend to lock in…'
@@ -561,7 +620,9 @@ export class CharacterSelectScene extends Phaser.Scene {
       this.hintText.setText('Entering battle…');
     }
 
-    const canConfirm = this.isOnline
+    const canConfirm = this.isCampaign
+      ? !this.p1Confirmed
+      : this.isOnline
       ? (isOnlineHost() ? !this.p1Confirmed : !this.p2Confirmed)
       : (!this.p1Confirmed || (this.mode === '2p' && !this.p2Confirmed));
     this.confirmBtn?.setEnabled(canConfirm);

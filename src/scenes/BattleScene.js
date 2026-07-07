@@ -5,6 +5,13 @@ import { TwiceClone } from '../entities/TwiceClone.js';
 import { drawArena } from '../utils/arenaRenderer.js';
 import { getArenaById } from '../data/backgrounds.js';
 import { getArcadeDifficulty } from '../data/arcade.js';
+import { getCampaignDifficulty, getOpponentConfig } from '../data/campaign.js';
+import {
+  unlockCharacter,
+  unlockStage,
+  setCampaignProgress,
+  loadProgress,
+} from '../utils/unlockProgress.js';
 import { getWinQuote } from '../data/winQuotes.js';
 import { CpuController } from '../utils/cpuAI.js';
 import { MouseFightInput, KeyboardFightInput, NetworkFightInput } from '../utils/fightControls.js';
@@ -44,16 +51,21 @@ export class BattleScene extends Phaser.Scene {
     this.p1Config = getCharacterById(data.p1);
     this.p2Config = getCharacterById(data.p2);
     this.mode = data.mode ?? '2p';
+    this.campaign = data.campaign ?? null;
+    if (this.campaign?.node) {
+      this.p2Config = getOpponentConfig(this.campaign.node);
+    }
     this.onlineRole = data.onlineRole ?? null;
     this.isOnline = this.mode === 'online';
     this.isOnlineHost = this.isOnline && (this.onlineRole === 'host' || isOnlineHost());
     this.isOnlineGuest = this.isOnline && this.onlineRole === 'guest';
     this.difficulty = data.difficulty ?? 'normal';
     this.playerSide = data.playerSide ?? this.p1Config?.faction ?? 'hero';
-    this.isCpu = this.mode === '1p';
+    this.isCpu = this.mode === '1p' || this.mode === 'campaign';
     this.stageId = data.stageId ?? this.registry.get('stageId') ?? 'ua-high';
     this.arena = getArenaById(this.stageId);
     this.arcade = data.arcade ?? null;
+    this._bossMods = this.p2Config?.bossMods ?? null;
     this.paused = false;
     this._p1SuperReady = false;
     this._p2SuperReady = false;
@@ -103,7 +115,11 @@ export class BattleScene extends Phaser.Scene {
 
     this.cpu = this.isCpu
       ? new CpuController(
-        this.arcade ? getArcadeDifficulty(this.difficulty, this.arcade.stageIndex ?? 0) : this.difficulty,
+        this.campaign
+          ? getCampaignDifficulty(this.difficulty, this.campaign.stageIndex ?? 0)
+          : this.arcade
+            ? getArcadeDifficulty(this.difficulty, this.arcade.stageIndex ?? 0)
+            : this.difficulty,
         this.p2Config.id,
       )
       : null;
@@ -611,7 +627,12 @@ export class BattleScene extends Phaser.Scene {
     const p1Plate = this.buildIntroPlate(-280, midY, this.p1Config, this.p1Palette.main, true);
     const p2Plate = this.buildIntroPlate(GAME_WIDTH + 280, midY, this.p2Config, this.p2Palette.main, false);
 
-    const roundLbl = comicTitle(this, GAME_WIDTH / 2, GAME_HEIGHT / 2 - 78, `ROUND ${this.currentRound}`, {
+    const roundTitle = this.campaign?.node?.boss === 'final'
+      ? 'BOSS BATTLE'
+      : this.campaign?.node?.boss === 'mini'
+        ? 'RIVAL SHOWDOWN'
+        : `ROUND ${this.currentRound}`;
+    const roundLbl = comicTitle(this, GAME_WIDTH / 2, GAME_HEIGHT / 2 - 78, roundTitle, {
       size: 22, color: UI.goldText, depth: UI.overlayDepth + 3,
     }).setAlpha(0);
     const vs = comicTitle(this, GAME_WIDTH / 2, midY, 'VS', {
@@ -627,6 +648,17 @@ export class BattleScene extends Phaser.Scene {
       this.tweens.add({ targets: vs, scale: { from: 1.8, to: 1 }, duration: 300, ease: 'Back.easeOut' });
       this.cameras.main.flash(120, 255, 255, 255, false);
     });
+
+    if (this.campaign?.node?.intro && this.currentRound === 1) {
+      const intro = label(this, GAME_WIDTH / 2, GAME_HEIGHT / 2 + 56, this.campaign.node.intro, {
+        fontSize: '10px', color: UI.textMuted, align: 'center', wordWrap: { width: 480 },
+        depth: UI.overlayDepth + 4, stroke: '#000', strokeThickness: 3,
+      }).setAlpha(0);
+      this.tweens.add({ targets: intro, alpha: 1, duration: 400, delay: 500 });
+      this.time.delayedCall(2200, () => {
+        this.tweens.add({ targets: intro, alpha: 0, duration: 300, onComplete: () => intro.destroy() });
+      });
+    }
 
     this.time.delayedCall(1050, () => {
       this.tweens.add({ targets: p1Plate, x: -300, duration: 280, ease: 'Back.easeIn', onComplete: () => p1Plate.destroy() });
@@ -831,6 +863,14 @@ export class BattleScene extends Phaser.Scene {
     attacker.markAttackHit();
     try {
       defender.takeDamage(damage, attacker);
+      if (this._bossMods?.powerSteal && defender === this.p1 && attacker === this.p2) {
+        const steal = this._bossMods.powerSteal;
+        this.p1.power = Math.max(0, this.p1.power - steal);
+        this.p2.power = Math.min(this.p2.maxPower, this.p2.power + steal);
+      }
+      if (this._bossMods?.decayChip && defender === this.p1 && attacker === this.p2) {
+        defender.takeDamage(this._bossMods.decayChip, attacker);
+      }
     } catch (err) {
       console.error('[resolveHit]', err);
     }
@@ -962,6 +1002,14 @@ export class BattleScene extends Phaser.Scene {
     this.updatePauseButton();
 
     const playerWon = roundWinner === 1;
+    if (this.campaign) {
+      if (playerWon) {
+        this.handleCampaignVictory();
+      } else {
+        this.showCampaignGameOver();
+      }
+      return;
+    }
     if (this.arcade) {
       if (playerWon) {
         const next = (this.arcade.stageIndex ?? 0) + 1;
@@ -1009,7 +1057,7 @@ export class BattleScene extends Phaser.Scene {
       difficulty: this.difficulty,
       playerSide: this.playerSide,
       stageId: this.stageId,
-      arcade: this.arcade,
+      campaign: this.campaign,
     });
   }
 
@@ -1033,6 +1081,127 @@ export class BattleScene extends Phaser.Scene {
             arcade: { ladder: this.arcade.ladder, stageIndex: nextStage },
           }, { fadeMs: 300 });
         },
+      },
+    ]);
+  }
+
+  handleCampaignVictory() {
+    const node = this.campaign.node;
+    const side = this.campaign.side;
+    const stageIndex = this.campaign.stageIndex ?? 0;
+    const wasNew = unlockCharacter(node.unlock);
+    if (node.unlockStage) unlockStage(node.unlockStage);
+
+    const next = stageIndex + 1;
+    const complete = next >= (this.campaign.totalStages ?? this.campaign.ladder?.length ?? 7);
+    setCampaignProgress(side, complete ? next : next, complete);
+
+    if (complete) {
+      this.showCampaignComplete(wasNew, node);
+    } else {
+      this.showCampaignStageClear(wasNew, node, next);
+    }
+  }
+
+  showCampaignStageClear(wasNew, node, nextStage) {
+    const unlocked = getCharacterById(node.unlock);
+    SFX.win();
+    this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x020408, 0.74).setDepth(UI.overlayDepth);
+    comicTitle(this, GAME_WIDTH / 2, GAME_HEIGHT / 2 - 52, 'STAGE CLEAR!', { size: 34, color: UI.goldText, depth: UI.overlayDepth + 1 });
+
+    if (wasNew && unlocked) {
+      comicTitle(this, GAME_WIDTH / 2, GAME_HEIGHT / 2 - 8, 'UNLOCKED!', { size: 20, color: UI.accentText, depth: UI.overlayDepth + 2 });
+      label(this, GAME_WIDTH / 2, GAME_HEIGHT / 2 + 18, unlocked.name.toUpperCase(), {
+        fontSize: '14px', color: UI.goldText, depth: UI.overlayDepth + 2,
+      });
+    } else {
+      label(this, GAME_WIDTH / 2, GAME_HEIGHT / 2 + 8, 'Rival defeated!', { fontSize: '12px', color: UI.text }).setDepth(UI.overlayDepth + 2);
+    }
+
+    createButtonRow(this, GAME_WIDTH / 2, GAME_HEIGHT / 2 + 58, [
+      {
+        label: 'CONTINUE',
+        onClick: () => {
+          safeSceneStart(this, 'CampaignScene', {
+            playerSide: this.campaign.side,
+            difficulty: this.difficulty,
+          }, { fadeMs: 300 });
+        },
+      },
+    ]);
+  }
+
+  showCampaignComplete(wasNew, node) {
+    const progress = loadProgress();
+    SFX.win();
+    this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x020408, 0.8).setDepth(UI.overlayDepth);
+    comicTitle(this, GAME_WIDTH / 2, GAME_HEIGHT / 2 - 60, 'CAMPAIGN COMPLETE!', { size: 32, color: UI.goldText, depth: UI.overlayDepth + 1 });
+    label(this, GAME_WIDTH / 2, GAME_HEIGHT / 2 - 18, 'Plus Ultra! You conquered the path.', {
+      fontSize: '12px', color: UI.text, depth: UI.overlayDepth + 2,
+    });
+
+    if (progress.secretUnlocked) {
+      comicTitle(this, GAME_WIDTH / 2, GAME_HEIGHT / 2 + 16, 'PLUS ULTRA UNLOCKED', {
+        size: 18, color: UI.accentText, depth: UI.overlayDepth + 2,
+      });
+      label(this, GAME_WIDTH / 2, GAME_HEIGHT / 2 + 42, 'All heroes & villains are now playable!', {
+        fontSize: '10px', color: UI.textMuted, depth: UI.overlayDepth + 2,
+      });
+    } else {
+      const other = this.campaign.side === 'hero' ? 'VILLAIN' : 'HERO';
+      label(this, GAME_WIDTH / 2, GAME_HEIGHT / 2 + 24, `Complete the ${other} path to unlock everyone!`, {
+        fontSize: '10px', color: UI.textMuted, depth: UI.overlayDepth + 2,
+      });
+    }
+
+    createButtonRow(this, GAME_WIDTH / 2, GAME_HEIGHT / 2 + 78, [
+      {
+        label: 'CAMPAIGN MAP',
+        onClick: () => {
+          safeSceneStart(this, 'CampaignScene', {
+            playerSide: this.campaign.side,
+            difficulty: this.difficulty,
+          }, { fadeMs: 300 });
+        },
+      },
+      {
+        label: 'MAIN MENU',
+        onClick: () => safeSceneStart(this, 'MenuScene', {}, { fadeMs: 300 }),
+      },
+    ]);
+  }
+
+  showCampaignGameOver() {
+    SFX.ko();
+    this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x020408, 0.78).setDepth(UI.overlayDepth);
+    comicTitle(this, GAME_WIDTH / 2, GAME_HEIGHT / 2 - 30, 'DEFEATED', { size: 36, color: '#ff6b6b', depth: UI.overlayDepth + 1 });
+    label(this, GAME_WIDTH / 2, GAME_HEIGHT / 2 + 6, this.campaign?.node?.intro ?? 'Train harder and try again.', {
+      fontSize: '10px', color: UI.textMuted, align: 'center', wordWrap: { width: 420 }, depth: UI.overlayDepth + 2,
+    });
+
+    createButtonRow(this, GAME_WIDTH / 2, GAME_HEIGHT / 2 + 52, [
+      {
+        label: 'RETRY',
+        onClick: () => {
+          safeSceneStart(this, 'CharacterSelectScene', {
+            mode: 'campaign',
+            playerSide: this.campaign.side,
+            campaignRun: this.campaign,
+          }, { fadeMs: 280 });
+        },
+      },
+      {
+        label: 'MAP',
+        onClick: () => {
+          safeSceneStart(this, 'CampaignScene', {
+            playerSide: this.campaign.side,
+            difficulty: this.difficulty,
+          }, { fadeMs: 280 });
+        },
+      },
+      {
+        label: 'MENU',
+        onClick: () => safeSceneStart(this, 'MenuScene', {}, { fadeMs: 280 }),
       },
     ]);
   }
