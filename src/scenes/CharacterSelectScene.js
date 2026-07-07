@@ -36,7 +36,7 @@ import {
   setShardSelected,
   SLOTS_PER_PAGE,
 } from '../utils/characterSelectUi.js';
-import { resetSceneTransition, safeSceneStart, ensureSceneVisible } from '../utils/sceneTransition.js';
+import { resetSceneTransition, safeSceneStart, ensureSceneVisible, beginScene, transitionTo } from '../utils/sceneTransition.js';
 import { ensureGameMusic } from '../utils/audio.js';
 import { createClickButton } from '../utils/uiButtons.js';
 import { bindClickToFocus, bindConfirmKeys, focusGameCanvas } from '../utils/gameInput.js';
@@ -66,7 +66,7 @@ export class CharacterSelectScene extends Phaser.Scene {
   }
 
   init(data = {}) {
-    resetSceneTransition(this);
+    beginScene(this);
     this.p1Index = 0;
     this.p2Index = 0;
     this.p1Confirmed = false;
@@ -118,9 +118,7 @@ export class CharacterSelectScene extends Phaser.Scene {
   }
 
   create() {
-    resetSceneTransition(this);
-    ensureSceneVisible(this);
-    this.cameras.main.setAlpha(1);
+    beginScene(this);
     this.cameras.main.setZoom(1);
 
     drawCharSelectBackground(this);
@@ -507,9 +505,10 @@ export class CharacterSelectScene extends Phaser.Scene {
   }
 
   launch() {
-    if (this._transitioning) resetSceneTransition(this);
+    beginScene(this);
     const p1Char = this.p1Roster[this.p1Index];
     const p2Char = this.p2Roster[this.p2Index];
+    if (!p1Char?.id || !p2Char?.id) return;
 
     const payload = {
       p1: p1Char.id,
@@ -525,7 +524,7 @@ export class CharacterSelectScene extends Phaser.Scene {
     };
 
     if (this.isCampaign) {
-      safeSceneStart(this, 'BattleScene', payload, { fadeMs: 300 });
+      transitionTo(this, 'BattleScene', payload, 120);
       return;
     }
 
@@ -543,7 +542,9 @@ export class CharacterSelectScene extends Phaser.Scene {
   }
 
   confirmSelection() {
-    if (this._transitioning) return;
+    if (this._transitioning) {
+      resetSceneTransition(this);
+    }
 
     if (this.isOnline) {
       if (isOnlineHost()) {

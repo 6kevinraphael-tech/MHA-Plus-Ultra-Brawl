@@ -29,7 +29,7 @@ import {
 } from '../utils/uiTheme.js';
 import { playAwakenCinematic, cleanupAwakenCinematic } from '../utils/awakenCinematic.js';
 import { createPortraitImage } from '../utils/spriteFrames.js';
-import { resetSceneTransition, safeSceneStart, ensureSceneVisible } from '../utils/sceneTransition.js';
+import { resetSceneTransition, safeSceneStart, ensureSceneVisible, beginScene, transitionTo } from '../utils/sceneTransition.js';
 import { ensureGameMusic } from '../utils/audio.js';
 import { createClickButton, createButtonRow } from '../utils/uiButtons.js';
 import {
@@ -48,6 +48,7 @@ export class BattleScene extends Phaser.Scene {
   }
 
   init(data) {
+    beginScene(this);
     this.p1Config = getCharacterById(data.p1);
     this.p2Config = getCharacterById(data.p2);
     this.mode = data.mode ?? '2p';
@@ -85,9 +86,7 @@ export class BattleScene extends Phaser.Scene {
   }
 
   create() {
-    resetSceneTransition(this);
-    ensureSceneVisible(this);
-    this.cameras.main.setAlpha(1);
+    beginScene(this);
     this.cameras.main.setZoom(1);
 
     if (!this.p1Config || !this.p2Config) {
@@ -831,7 +830,7 @@ export class BattleScene extends Phaser.Scene {
     });
     this.time.delayedCall(1800, () => {
       leaveOnlineRoom();
-      safeSceneStart(this, 'MenuScene', {}, { fadeMs: 280 });
+      transitionTo(this, 'MenuScene', {}, 120);
     });
   }
 
@@ -998,6 +997,9 @@ export class BattleScene extends Phaser.Scene {
 
   endMatch(roundWinner) {
     this.matchOver = true;
+    this._slowMoUntil = null;
+    this.physics.world.timeScale = 1;
+    this.tweens.timeScale = 1;
     this.physics.pause();
     this.updatePauseButton();
 
@@ -1044,8 +1046,8 @@ export class BattleScene extends Phaser.Scene {
 
     createButtonRow(this, GAME_WIDTH / 2, GAME_HEIGHT / 2 + 62, [
       { label: 'REMATCH', onClick: () => this.restartMatch() },
-      { label: 'CHANGE', onClick: () => safeSceneStart(this, 'CharacterSelectScene', {}, { fadeMs: 280 }) },
-      { label: 'MENU', onClick: () => { stopGameMusic(); safeSceneStart(this, 'MenuScene', {}, { fadeMs: 280 }); } },
+      { label: 'CHANGE', onClick: () => transitionTo(this, 'CharacterSelectScene', {}, 120) },
+      { label: 'MENU', onClick: () => { stopGameMusic(); transitionTo(this, 'MenuScene', {}, 120); } },
     ]);
   }
 
@@ -1072,14 +1074,14 @@ export class BattleScene extends Phaser.Scene {
       {
         label: 'CONTINUE',
         onClick: () => {
-          safeSceneStart(this, 'StageSelectScene', {
+          transitionTo(this, 'StageSelectScene', {
             p1: this.p1Config.id,
             p2: this.arcade.ladder[nextStage],
             mode: this.mode,
             difficulty: this.difficulty,
             playerSide: this.playerSide,
             arcade: { ladder: this.arcade.ladder, stageIndex: nextStage },
-          }, { fadeMs: 300 });
+          }, 120);
         },
       },
     ]);
@@ -1122,10 +1124,10 @@ export class BattleScene extends Phaser.Scene {
       {
         label: 'CONTINUE',
         onClick: () => {
-          safeSceneStart(this, 'CampaignScene', {
+          transitionTo(this, 'CampaignScene', {
             playerSide: this.campaign.side,
             difficulty: this.difficulty,
-          }, { fadeMs: 300 });
+          }, 120);
         },
       },
     ]);
@@ -1158,15 +1160,15 @@ export class BattleScene extends Phaser.Scene {
       {
         label: 'CAMPAIGN MAP',
         onClick: () => {
-          safeSceneStart(this, 'CampaignScene', {
+          transitionTo(this, 'CampaignScene', {
             playerSide: this.campaign.side,
             difficulty: this.difficulty,
-          }, { fadeMs: 300 });
+          }, 120);
         },
       },
       {
         label: 'MAIN MENU',
-        onClick: () => safeSceneStart(this, 'MenuScene', {}, { fadeMs: 300 }),
+        onClick: () => transitionTo(this, 'MenuScene', {}, 120),
       },
     ]);
   }
@@ -1183,25 +1185,25 @@ export class BattleScene extends Phaser.Scene {
       {
         label: 'RETRY',
         onClick: () => {
-          safeSceneStart(this, 'CharacterSelectScene', {
+          transitionTo(this, 'CharacterSelectScene', {
             mode: 'campaign',
             playerSide: this.campaign.side,
             campaignRun: this.campaign,
-          }, { fadeMs: 280 });
+          }, 120);
         },
       },
       {
         label: 'MAP',
         onClick: () => {
-          safeSceneStart(this, 'CampaignScene', {
+          transitionTo(this, 'CampaignScene', {
             playerSide: this.campaign.side,
             difficulty: this.difficulty,
-          }, { fadeMs: 280 });
+          }, 120);
         },
       },
       {
         label: 'MENU',
-        onClick: () => safeSceneStart(this, 'MenuScene', {}, { fadeMs: 280 }),
+        onClick: () => transitionTo(this, 'MenuScene', {}, 120),
       },
     ]);
   }
@@ -1213,7 +1215,7 @@ export class BattleScene extends Phaser.Scene {
     label(this, GAME_WIDTH / 2, GAME_HEIGHT / 2, 'Plus Ultra! You cleared the ladder.', { fontSize: '13px', color: UI.text }).setDepth(UI.overlayDepth + 2);
 
     createButtonRow(this, GAME_WIDTH / 2, GAME_HEIGHT / 2 + 44, [
-      { label: 'MAIN MENU', onClick: () => safeSceneStart(this, 'MenuScene', {}, { fadeMs: 300 }) },
+      { label: 'MAIN MENU', onClick: () => transitionTo(this, 'MenuScene', {}, 120) },
     ]);
   }
 
@@ -1223,8 +1225,8 @@ export class BattleScene extends Phaser.Scene {
     comicTitle(this, GAME_WIDTH / 2, GAME_HEIGHT / 2 - 20, 'DEFEATED', { size: 36, color: '#ff6b6b', depth: UI.overlayDepth + 1 });
 
     createButtonRow(this, GAME_WIDTH / 2, GAME_HEIGHT / 2 + 36, [
-      { label: 'RETRY', onClick: () => safeSceneStart(this, 'CharacterSelectScene', {}, { fadeMs: 280 }) },
-      { label: 'MENU', onClick: () => safeSceneStart(this, 'MenuScene', {}, { fadeMs: 280 }) },
+      { label: 'RETRY', onClick: () => transitionTo(this, 'CharacterSelectScene', {}, 120) },
+      { label: 'MENU', onClick: () => transitionTo(this, 'MenuScene', {}, 120) },
     ]);
   }
 
@@ -1263,12 +1265,12 @@ export class BattleScene extends Phaser.Scene {
     }, { width: 160, height: 38, depth: UI.overlayDepth + 12, sfx: 'move' });
     const change = createClickButton(this, cx, cy + 64, 'CHANGE FIGHTER', () => {
       this.hidePauseMenu();
-      safeSceneStart(this, 'CharacterSelectScene', {}, { fadeMs: 200 });
+      transitionTo(this, 'CharacterSelectScene', {}, 120);
     }, { width: 160, height: 38, depth: UI.overlayDepth + 12, sfx: 'move' });
     const quit = createClickButton(this, cx, cy + 106, 'QUIT TO MENU', () => {
       this.hidePauseMenu();
       stopGameMusic();
-      safeSceneStart(this, 'MenuScene', {}, { fadeMs: 280 });
+      transitionTo(this, 'MenuScene', {}, 120);
     }, { width: 160, height: 38, depth: UI.overlayDepth + 12, sfx: 'move' });
 
     this.pauseOverlay.add([
@@ -1375,5 +1377,6 @@ export class BattleScene extends Phaser.Scene {
     this.physics.world.timeScale = 1;
     this.tweens.timeScale = 1;
     resetSceneTransition(this);
+    ensureSceneVisible(this);
   }
 }

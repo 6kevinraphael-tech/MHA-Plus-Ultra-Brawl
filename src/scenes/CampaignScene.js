@@ -4,7 +4,7 @@ import { getCampaignPath, getCampaignNode } from '../data/campaign.js';
 import { getCampaignState, getUnlockStats } from '../utils/unlockProgress.js';
 import { SFX, ensureGameMusic } from '../utils/audio.js';
 import { comicTitle, coverImage, label, rgba, UI, factionPalette } from '../utils/uiTheme.js';
-import { resetSceneTransition, safeSceneStart, ensureSceneVisible } from '../utils/sceneTransition.js';
+import { resetSceneTransition, safeSceneStart, ensureSceneVisible, beginScene, transitionTo } from '../utils/sceneTransition.js';
 import { createClickButton } from '../utils/uiButtons.js';
 import { bindClickToFocus, bindConfirmKeys, focusGameCanvas } from '../utils/gameInput.js';
 import { createPortraitImage } from '../utils/spriteFrames.js';
@@ -25,6 +25,7 @@ export class CampaignScene extends Phaser.Scene {
   }
 
   init(data = {}) {
+    beginScene(this);
     this.playerSide = data.playerSide ?? 'hero';
     this.difficulty = data.difficulty ?? 'normal';
     this.path = getCampaignPath(this.playerSide);
@@ -33,9 +34,7 @@ export class CampaignScene extends Phaser.Scene {
   }
 
   create() {
-    resetSceneTransition(this);
-    ensureSceneVisible(this);
-    this.cameras.main.setAlpha(1);
+    beginScene(this);
 
     coverImage(this, 'ui-mha-title', -100, 0.55);
 
@@ -197,11 +196,11 @@ export class CampaignScene extends Phaser.Scene {
     this.registry.set('difficulty', this.difficulty);
     this.registry.set('campaignRun', campaignRun);
 
-    safeSceneStart(this, 'CharacterSelectScene', {
+    transitionTo(this, 'CharacterSelectScene', {
       mode: 'campaign',
       playerSide: this.playerSide,
       campaignRun,
-    }, { fadeMs: 280 });
+    }, 120);
   }
 
   shutdown() {
