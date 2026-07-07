@@ -258,7 +258,7 @@ export class MenuScene extends Phaser.Scene {
     ensureGameMusic();
     SFX.uiConfirm();
 
-    const selected = MODES[this.modeIndex].id;
+    const selected = MODES[this.modeIndex]?.id ?? 'campaign';
 
     if (selected === 'online') {
       this.registry.set('mode', 'online');

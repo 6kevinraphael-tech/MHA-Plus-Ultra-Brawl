@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { GAME_WIDTH, GAME_HEIGHT, getCharacterById } from '../data/characters.js';
 import { getCampaignPath, getCampaignNode } from '../data/campaign.js';
-import { getUnlockStats, loadProgress } from '../utils/unlockProgress.js';
+import { getCampaignState, getUnlockStats } from '../utils/unlockProgress.js';
 import { SFX, ensureGameMusic } from '../utils/audio.js';
 import { comicTitle, coverImage, label, rgba, UI, factionPalette } from '../utils/uiTheme.js';
 import { resetSceneTransition, safeSceneStart, ensureSceneVisible } from '../utils/sceneTransition.js';
