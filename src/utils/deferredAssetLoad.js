@@ -1,5 +1,6 @@
 import {
   DEFERRED_ASSETS,
+  BOOT_ASSETS,
   missingAssets,
   quickFinalizeTextures,
 } from './assetFinalize.js';
@@ -12,6 +13,9 @@ function markReady(scene) {
   scene.registry.set('allAssetsReady', true);
   scene.registry.set('assetsFinalized', true);
   scene.registry.set('assetsReady', true);
+  scene.registry.set('menuAssetsReady', true);
+  scene.events.emit('deferred-assets-ready');
+  scene.game.events.emit('deferred-assets-ready');
 }
 
 function clearLoadTimeout() {
@@ -21,16 +25,27 @@ function clearLoadTimeout() {
   }
 }
 
+function stopLoader(scene) {
+  try {
+    if (scene.load.isLoading()) scene.load.reset();
+  } catch {
+    /* ignore */
+  }
+}
+
 export function isAllAssetsReady(scene) {
   return scene.registry.get('allAssetsReady') === true;
 }
 
-/** Load fighters, backgrounds, and roster in the background after the menu is visible. */
+/** Load all game art in the background after the menu is visible. */
 export function ensureDeferredAssets(scene) {
   if (isAllAssetsReady(scene)) return;
 
-  const missing = missingAssets(scene, DEFERRED_ASSETS);
-  if (missing.length === 0) {
+  const allMissing = [
+    ...missingAssets(scene, BOOT_ASSETS),
+    ...missingAssets(scene, DEFERRED_ASSETS),
+  ];
+  if (allMissing.length === 0) {
     markReady(scene);
     return;
   }
@@ -38,19 +53,20 @@ export function ensureDeferredAssets(scene) {
   if (activeLoaderScene === scene && scene.load.isLoading()) return;
 
   activeLoaderScene = scene;
-  scene.load.reset();
+  stopLoader(scene);
   scene.load.off('complete');
   scene.load.off('loaderror');
 
-  for (const [key, url] of missing) {
-    if (!scene.textures.exists(key)) {
-      scene.load.image(key, url);
-    }
+  const seen = new Set();
+  for (const [key, url] of [...BOOT_ASSETS, ...DEFERRED_ASSETS]) {
+    if (seen.has(key) || scene.textures.exists(key)) continue;
+    seen.add(key);
+    scene.load.image(key, url);
   }
 
   if (scene.load.totalToLoad === 0) {
-    markReady(scene);
     activeLoaderScene = null;
+    markReady(scene);
     return;
   }
 
@@ -61,7 +77,6 @@ export function ensureDeferredAssets(scene) {
   scene.load.once('complete', () => {
     clearLoadTimeout();
     activeLoaderScene = null;
-    if (!scene.scene?.isActive?.(scene.scene.key)) return;
     markReady(scene);
   });
 
@@ -71,9 +86,9 @@ export function ensureDeferredAssets(scene) {
     activeLoaderScene = null;
     if (isAllAssetsReady(scene)) return;
     console.warn('[deferredAssets] timeout — continuing with loaded textures');
-    if (scene.load.isLoading()) scene.load.reset();
+    stopLoader(scene);
     markReady(scene);
-  }, 20000);
+  }, 25000);
 
   scene.load.start();
 }

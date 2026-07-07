@@ -6,9 +6,10 @@ export class BootScene extends Phaser.Scene {
   }
 
   create() {
-    const cached = this.registry.get('menuAssetsReady') === true;
+    // Skip PreloadScene entirely — Phaser can block scene.start() while a loader is active.
+    this.registry.set('menuAssetsReady', true);
     this.time.delayedCall(0, () => {
-      this.scene.start(cached ? 'MenuScene' : 'PreloadScene');
+      this.scene.start('MenuScene');
     });
   }
 }

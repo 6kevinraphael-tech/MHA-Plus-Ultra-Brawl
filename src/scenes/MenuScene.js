@@ -51,13 +51,17 @@ export class MenuScene extends Phaser.Scene {
   create() {
     resetSceneTransition(this);
     ensureSceneVisible(this);
-    ensureDeferredAssets(this);
+    this.cameras.main.setBackgroundColor('#06080f');
+    this.titleImage = null;
+
     this.modeIndex = this.registry.get('modeIndex') ?? 0;
     this.sideIndex = this.registry.get('sideIndex') ?? 0;
     this.diffIndex = this.registry.get('diffIndex') ?? 1;
     this.row = 0;
 
-    coverImage(this, 'ui-title-clash', -100, 0.95);
+    this.applyMenuBackground();
+    this.events.on('deferred-assets-ready', () => this.applyMenuBackground());
+    ensureDeferredAssets(this);
 
     const shade = this.add.graphics().setDepth(-90);
     shade.fillGradientStyle(0x000000, 0x000000, 0x000000, 0x000000, 0, 0, 0, 0.88);
@@ -146,6 +150,12 @@ export class MenuScene extends Phaser.Scene {
     };
     this._musicUnlock = unlock;
     this.input.on('pointerdown', unlock);
+  }
+
+  applyMenuBackground() {
+    if (!this.textures.exists('ui-title-clash')) return;
+    if (this.titleImage?.active) return;
+    this.titleImage = coverImage(this, 'ui-title-clash', -100, 0.95);
   }
 
   drawMenuPanel() {
@@ -299,6 +309,7 @@ export class MenuScene extends Phaser.Scene {
 
   shutdown() {
     resetSceneTransition(this);
+    this.events.off('deferred-assets-ready');
     this._unbindFocus?.();
     this._unbindFocus = null;
     this._unbindConfirm?.();
