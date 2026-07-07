@@ -281,12 +281,16 @@ export class MenuScene extends Phaser.Scene {
 
     this.muteBtn.setLabel(isMuted() ? 'AUDIO OFF' : 'AUDIO ON');
 
-    const stats = getUnlockStats();
-    this.unlockHint?.setText(
-      stats.secretUnlocked
-        ? 'PLUS ULTRA — all fighters unlocked!'
-        : `Unlocked ${stats.heroes}/${stats.totalHeroes} heroes · ${stats.villains}/${stats.totalVillains} villains`,
-    );
+    try {
+      const stats = getUnlockStats();
+      this.unlockHint?.setText(
+        stats.secretUnlocked
+          ? 'PLUS ULTRA — all fighters unlocked!'
+          : `Unlocked ${stats.heroes}/${stats.totalHeroes} heroes · ${stats.villains}/${stats.totalVillains} villains`,
+      );
+    } catch (err) {
+      console.warn('[MenuScene] unlock stats failed:', err);
+    }
   }
 
   start() {
@@ -329,7 +333,7 @@ export class MenuScene extends Phaser.Scene {
     this.registry.remove('campaignRun');
 
     this.cameras.main.flash(120, 255, 255, 255, false);
-    safeSceneStart(this, 'CharacterSelectScene', {}, { fadeMs: 350 });
+    safeSceneStart(this, 'CharacterSelectScene', {}, { fadeMs: 0 });
   }
 
   shutdown() {

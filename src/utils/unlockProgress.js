@@ -31,6 +31,8 @@ const ALL_STAGE_IDS = [
   'forest-camp',
 ];
 
+let cache = null;
+
 function normalizeStageId(stageId) {
   return LEGACY_STAGE_IDS[stageId] ?? stageId;
 }
