@@ -1,14 +1,124 @@
-import {
-  DEFERRED_ASSETS,
-  BOOT_ASSETS,
-  missingAssets,
-  quickFinalizeTextures,
-} from './assetFinalize.js';
+import { applySmoothFilter, makeSheetTransparent } from '../data/spriteSheets.js';
+import { registerPortraitFrames } from '../data/portraitFrames.js';
+import { registerBattleFrames } from '../data/battleFrames.js';
+import { CHARACTER_IMAGE_ASSETS } from '../data/characterImages.js';
+import { UI_ASSETS } from '../data/uiAssets.js';
 
-let activeLoaderScene = null;
-let loadTimeoutId = null;
+const SPRITE_ASSETS = [];
 
-function markReady(scene) {
+const BG_ASSETS = [
+  ['bg-ua-entrance', '/assets/backgrounds/ua-entrance.png'],
+  ['bg-ua-campus', '/assets/backgrounds/ua-campus.png'],
+  ['bg-city-streets', '/assets/backgrounds/city-streets.png'],
+  ['bg-dojo', '/assets/backgrounds/dojo.png'],
+  ['bg-ground-beta', '/assets/backgrounds/ground-beta.png'],
+  ['bg-forest-camp', '/assets/backgrounds/forest-camp.png'],
+];
+
+const ROSTER_ASSETS = [
+  ['mha-roster', '/assets/mha-roster.png'],
+];
+
+export const BOOT_ASSETS = [...UI_ASSETS];
+
+export const DEFERRED_ASSETS = [
+  ...ROSTER_ASSETS,
+  ...SPRITE_ASSETS,
+  ...BG_ASSETS,
+  ...CHARACTER_IMAGE_ASSETS,
+];
+
+export const ALL_ASSETS = [...BOOT_ASSETS, ...DEFERRED_ASSETS];
+
+const FILTER_KEYS = [...UI_ASSETS, ...ROSTER_ASSETS, ...BG_ASSETS, ...CHARACTER_IMAGE_ASSETS];
+
+export function missingAssets(scene, assets = ALL_ASSETS) {
+  return assets.filter(([key]) => !scene.textures.exists(key));
+}
+
+export function allAssetsLoaded(scene) {
+  return missingAssets(scene, ALL_ASSETS).length === 0;
+}
+
+export function quickFinalizeTextures(scene) {
+  for (const [key] of FILTER_KEYS) {
+    if (scene.textures.exists(key)) {
+      try {
+        applySmoothFilter(scene, key);
+      } catch (err) {
+        console.warn('[assetFinalize] filter failed:', key, err);
+      }
+    }
+  }
+
+  for (const [key] of SPRITE_ASSETS) {
+    if (scene.textures.exists(key)) {
+      try {
+        makeSheetTransparent(scene, key);
+      } catch (err) {
+        console.warn('[assetFinalize] transparency bake failed:', key, err);
+      }
+    }
+  }
+
+  try {
+    registerPortraitFrames(scene);
+    registerBattleFrames(scene);
+  } catch (err) {
+    console.warn('[assetFinalize] frame registration failed:', err);
+  }
+}
+
+function loadImage(url) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error(`Failed to load ${url}`));
+    img.src = url;
+  });
+}
+
+let loading = false;
+
+/** Load textures via Image() — does NOT use Phaser's loader (won't freeze the menu). */
+export async function loadAssetsInBackground(scene) {
+  if (scene.registry.get('allAssetsReady')) return;
+  if (loading) return;
+
+  const pending = missingAssets(scene, ALL_ASSETS);
+  if (pending.length === 0) {
+    finishBackgroundLoad(scene);
+    return;
+  }
+
+  loading = true;
+  const failed = [];
+
+  for (const [key, url] of pending) {
+    if (scene.registry.get('allAssetsReady')) break;
+    if (scene.textures.exists(key)) continue;
+    try {
+      const img = await loadImage(url);
+      if (!scene.textures.exists(key)) {
+        scene.textures.addImage(key, img);
+        applySmoothFilter(scene, key);
+      }
+    } catch (err) {
+      console.warn('[backgroundLoad]', key, err);
+      failed.push(key);
+    }
+    // Yield so the menu stays responsive.
+    await new Promise((r) => setTimeout(r, 0));
+  }
+
+  loading = false;
+  finishBackgroundLoad(scene);
+  if (failed.length) {
+    console.warn('[backgroundLoad] missing:', failed.join(', '));
+  }
+}
+
+function finishBackgroundLoad(scene) {
   quickFinalizeTextures(scene);
   scene.registry.set('allAssetsReady', true);
   scene.registry.set('assetsFinalized', true);
@@ -18,89 +128,13 @@ function markReady(scene) {
   scene.game.events.emit('deferred-assets-ready');
 }
 
-function clearLoadTimeout() {
-  if (loadTimeoutId != null) {
-    window.clearTimeout(loadTimeoutId);
-    loadTimeoutId = null;
-  }
-}
-
-function stopLoader(scene) {
-  try {
-    if (scene.load.isLoading()) scene.load.reset();
-  } catch {
-    /* ignore */
-  }
+export function ensureDeferredAssets(scene) {
+  loadAssetsInBackground(scene).catch((err) => {
+    console.error('[backgroundLoad] fatal:', err);
+    finishBackgroundLoad(scene);
+  });
 }
 
 export function isAllAssetsReady(scene) {
   return scene.registry.get('allAssetsReady') === true;
-}
-
-/** Load game art in the background — must NOT run during scene create(). */
-export function ensureDeferredAssets(scene) {
-  if (isAllAssetsReady(scene)) return;
-
-  const begin = () => startDeferredLoad(scene);
-
-  if (scene.time) {
-    scene.time.delayedCall(0, begin);
-  } else {
-    window.setTimeout(begin, 0);
-  }
-}
-
-function startDeferredLoad(scene) {
-  if (isAllAssetsReady(scene)) return;
-
-  const allMissing = [
-    ...missingAssets(scene, BOOT_ASSETS),
-    ...missingAssets(scene, DEFERRED_ASSETS),
-  ];
-  if (allMissing.length === 0) {
-    markReady(scene);
-    return;
-  }
-
-  if (activeLoaderScene === scene && scene.load.isLoading()) return;
-
-  activeLoaderScene = scene;
-  stopLoader(scene);
-  scene.load.off('complete');
-  scene.load.off('loaderror');
-
-  const seen = new Set();
-  for (const [key, url] of [...BOOT_ASSETS, ...DEFERRED_ASSETS]) {
-    if (seen.has(key) || scene.textures.exists(key)) continue;
-    seen.add(key);
-    scene.load.image(key, url);
-  }
-
-  if (scene.load.totalToLoad === 0) {
-    activeLoaderScene = null;
-    markReady(scene);
-    return;
-  }
-
-  scene.load.once('loaderror', (file) => {
-    console.error('[deferredAssets] failed:', file.key, file.url);
-  });
-
-  scene.load.once('complete', () => {
-    clearLoadTimeout();
-    activeLoaderScene = null;
-    markReady(scene);
-  });
-
-  clearLoadTimeout();
-  loadTimeoutId = window.setTimeout(() => {
-    loadTimeoutId = null;
-    activeLoaderScene = null;
-    if (isAllAssetsReady(scene)) return;
-    console.warn('[deferredAssets] timeout — continuing with loaded textures');
-    stopLoader(scene);
-    markReady(scene);
-  }, 25000);
-
-  scene.load.start();
 }

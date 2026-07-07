@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { resetSceneTransition } from '../utils/sceneTransition.js';
 
-/** Legacy scene — boot now goes straight to MenuScene. Redirect if reached. */
+/** Legacy redirect — boot goes straight to MenuScene. */
 export class PreloadScene extends Phaser.Scene {
   constructor() {
     super('PreloadScene');
@@ -9,11 +9,6 @@ export class PreloadScene extends Phaser.Scene {
 
   create() {
     resetSceneTransition(this);
-    try {
-      if (this.load.isLoading()) this.load.reset();
-    } catch {
-      /* ignore */
-    }
     this.registry.set('menuAssetsReady', true);
     this.scene.start('MenuScene');
   }

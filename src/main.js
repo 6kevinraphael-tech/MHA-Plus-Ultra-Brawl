@@ -36,7 +36,7 @@ const config = {
   pause: {
     pauseOnBlur: false,
   },
-  scene: [BootScene, PreloadScene, MenuScene, OnlineLobbyScene, CampaignScene, CharacterSelectScene, StageSelectScene, BattleScene],
+  scene: [MenuScene, BootScene, PreloadScene, OnlineLobbyScene, CampaignScene, CharacterSelectScene, StageSelectScene, BattleScene],
 };
 
 function bindGameEvents(game) {
@@ -61,7 +61,12 @@ function bindGameEvents(game) {
 
 function bootGame() {
   if (window.__game) {
-    return window.__game;
+    try {
+      window.__game.destroy(true);
+    } catch {
+      /* ignore */
+    }
+    window.__game = null;
   }
 
   const game = new Phaser.Game(config);

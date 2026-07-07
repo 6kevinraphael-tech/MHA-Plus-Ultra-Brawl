@@ -50,10 +50,24 @@ export class MenuScene extends Phaser.Scene {
   }
 
   create() {
+    try {
+      this.buildMenu();
+    } catch (err) {
+      console.error('[MenuScene] create failed:', err);
+      this.cameras.main.setBackgroundColor('#220000');
+      this.add.text(GAME_WIDTH / 2, GAME_HEIGHT / 2, 'Menu error — check console', {
+        fontSize: '18px', color: '#ff6666', align: 'center',
+      }).setOrigin(0.5);
+    }
+  }
+
+  buildMenu() {
     resetSceneTransition(this);
     ensureSceneVisible(this);
-    this.cameras.main.setBackgroundColor('#06080f');
+    this.cameras.main.setBackgroundColor('#1a1028');
     this.titleImage = null;
+
+    this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x2a1040).setDepth(-100);
 
     this.modeIndex = this.registry.get('modeIndex') ?? 0;
     this.sideIndex = this.registry.get('sideIndex') ?? 0;
@@ -151,8 +165,7 @@ export class MenuScene extends Phaser.Scene {
     cam.resetFX();
     cam.setAlpha(1);
 
-    // Never start the loader during create() — Phaser won't render the scene until loading finishes.
-    this.time.delayedCall(300, () => ensureDeferredAssets(this));
+    this.time.delayedCall(500, () => ensureDeferredAssets(this));
   }
 
   setupMusicUnlock() {
