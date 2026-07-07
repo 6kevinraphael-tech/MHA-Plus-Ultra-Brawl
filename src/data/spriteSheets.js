@@ -7,7 +7,7 @@ export function applySmoothFilter(scene, sheetKey) {
   }
 }
 
-/** Force character PNGs fully opaque at runtime (fixes faded / holey cutouts). */
+/** Force character sprites fully opaque at runtime (fixes faded cutouts). */
 export function solidifyCharacterImageAlpha(scene, sheetKey) {
   if (!scene.textures.exists(sheetKey)) return;
 
@@ -29,62 +29,13 @@ export function solidifyCharacterImageAlpha(scene, sheetKey) {
   const data = image.data;
   const total = w * h;
 
+  // Fast pass only — the old flood-fill hole repair blocked the main thread
+  // for minutes on large JPEG sprites and froze the loading screen.
   for (let p = 0; p < total; p += 1) {
     const i = p * 4;
     const a = data[i + 3];
     if (a < 10) data[i + 3] = 0;
-    else if (a >= 250) data[i + 3] = 255;
-  }
-
-  const outside = new Uint8Array(total);
-  const stack = [];
-  const pushClear = (x, y) => {
-    if (x < 0 || y < 0 || x >= w || y >= h) return;
-    const p = y * w + x;
-    if (outside[p] || data[p * 4 + 3] > 16) return;
-    outside[p] = 1;
-    stack.push(p);
-  };
-  for (let x = 0; x < w; x += 1) { pushClear(x, 0); pushClear(x, h - 1); }
-  for (let y = 0; y < h; y += 1) { pushClear(0, y); pushClear(w - 1, y); }
-  while (stack.length) {
-    const p = stack.pop();
-    const x = p % w;
-    const y = (p - x) / w;
-    pushClear(x + 1, y);
-    pushClear(x - 1, y);
-    pushClear(x, y + 1);
-    pushClear(x, y - 1);
-  }
-
-  for (let p = 0; p < total; p += 1) {
-    if (data[p * 4 + 3] > 16 || outside[p]) continue;
-    const x = p % w;
-    const y = (p - x) / w;
-    let r = 0;
-    let g = 0;
-    let b = 0;
-    let count = 0;
-    for (let dy = -2; dy <= 2; dy += 1) {
-      for (let dx = -2; dx <= 2; dx += 1) {
-        if (!dx && !dy) continue;
-        const nx = x + dx;
-        const ny = y + dy;
-        if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
-        const ni = (ny * w + nx) * 4;
-        if (data[ni + 3] < 200) continue;
-        r += data[ni];
-        g += data[ni + 1];
-        b += data[ni + 2];
-        count += 1;
-      }
-    }
-    if (!count) continue;
-    const i = p * 4;
-    data[i] = Math.round(r / count);
-    data[i + 1] = Math.round(g / count);
-    data[i + 2] = Math.round(b / count);
-    data[i + 3] = 255;
+    else if (a >= 200) data[i + 3] = 255;
   }
 
   ctx.putImageData(image, 0, 0);

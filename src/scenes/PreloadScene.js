@@ -36,8 +36,6 @@ const CORE_ASSETS = [...UI_ASSETS, ...ROSTER_ASSETS, ...SPRITE_ASSETS, ...BG_ASS
 const FILTER_KEYS = [...UI_ASSETS, ...ROSTER_ASSETS, ...BG_ASSETS, ...CHARACTER_IMAGE_ASSETS];
 const MAX_LOAD_RETRIES = 3;
 const LOAD_TIMEOUT_MS = 15000;
-const FINALIZE_TIMEOUT_MS = 45000;
-const IMAGES_PER_FRAME = 1;
 
 function missingAssets(scene) {
   return CORE_ASSETS.filter(([key]) => !scene.textures.exists(key));
@@ -57,7 +55,6 @@ export class PreloadScene extends Phaser.Scene {
     this._retryCount = data?.retryCount ?? 0;
     this._loadBar = null;
     this._loadTimeout = null;
-    this._finalizeTimeout = null;
     this._statusLabel = null;
   }
 
@@ -66,7 +63,7 @@ export class PreloadScene extends Phaser.Scene {
     this.showLoadingUi();
 
     this.load.on('progress', (value) => {
-      if (this._loadBar) setMhaLoadingBar(this._loadBar, value * 0.55);
+      if (this._loadBar) setMhaLoadingBar(this._loadBar, value);
     });
     this.load.on('loaderror', (file) => {
       console.error('Failed to load asset:', file.key, file.url);
@@ -138,25 +135,19 @@ export class PreloadScene extends Phaser.Scene {
     this._finished = true;
     this.clearLoadTimeout();
 
-    if (this.registry.get('assetsFinalized')) {
-      this.registry.set('assetsReady', true);
-      this.registry.set('preloadRetryCount', 0);
-      this.goToMenu();
-      return;
+    if (!this.registry.get('assetsFinalized')) {
+      this._statusLabel?.setText('READY');
+      if (this._loadBar) setMhaLoadingBar(this._loadBar, 1);
+      this.finalizeAssets();
+      this.registry.set('assetsFinalized', true);
     }
 
-    this._statusLabel?.setText('PROCESSING FIGHTERS');
-    this.startFinalizeTimeout();
-    this.finalizeAssetsBatched(() => {
-      this.clearFinalizeTimeout();
-      this.registry.set('assetsFinalized', true);
-      this.registry.set('assetsReady', true);
-      this.registry.set('preloadRetryCount', 0);
-      this.goToMenu();
-    });
+    this.registry.set('assetsReady', true);
+    this.registry.set('preloadRetryCount', 0);
+    this.goToMenu();
   }
 
-  finalizeAssetsBatched(onComplete) {
+  finalizeAssets() {
     for (const [key] of FILTER_KEYS) {
       if (this.textures.exists(key)) {
         try {
@@ -167,63 +158,36 @@ export class PreloadScene extends Phaser.Scene {
       }
     }
 
-    const imageKeys = CHARACTER_IMAGE_ASSETS
-      .map(([key]) => key)
-      .filter((key) => this.textures.exists(key));
-
-    let index = 0;
-
-    const step = () => {
-      if (!this.scene.isActive('PreloadScene')) return;
-
-      let batch = 0;
-      while (batch < IMAGES_PER_FRAME && index < imageKeys.length) {
-        const key = imageKeys[index];
-        index += 1;
-        batch += 1;
+    for (const [key] of CHARACTER_IMAGE_ASSETS) {
+      if (this.textures.exists(key)) {
         try {
           solidifyCharacterImageAlpha(this, key);
         } catch (err) {
           console.warn('[PreloadScene] alpha bake failed:', key, err);
         }
       }
+    }
 
-      const progress = 0.55 + (imageKeys.length > 0 ? (index / imageKeys.length) * 0.45 : 0.45);
-      if (this._loadBar) setMhaLoadingBar(this._loadBar, progress);
-
-      if (index < imageKeys.length) {
-        this.time.delayedCall(0, step);
-        return;
-      }
-
-      for (const [key] of SPRITE_ASSETS) {
-        if (this.textures.exists(key)) {
-          try {
-            makeSheetTransparent(this, key);
-          } catch (err) {
-            console.warn('[PreloadScene] transparency bake failed:', key, err);
-          }
+    for (const [key] of SPRITE_ASSETS) {
+      if (this.textures.exists(key)) {
+        try {
+          makeSheetTransparent(this, key);
+        } catch (err) {
+          console.warn('[PreloadScene] transparency bake failed:', key, err);
         }
       }
+    }
 
-      try {
-        registerPortraitFrames(this);
-        registerBattleFrames(this);
-      } catch (err) {
-        console.warn('[PreloadScene] frame registration failed:', err);
-      }
-
-      if (this._loadBar) setMhaLoadingBar(this._loadBar, 1);
-      onComplete();
-    };
-
-    step();
+    try {
+      registerPortraitFrames(this);
+      registerBattleFrames(this);
+    } catch (err) {
+      console.warn('[PreloadScene] frame registration failed:', err);
+    }
   }
 
   goToMenu() {
     resetSceneTransition(this);
-    // Defer — Phaser ignores scene.start() when called synchronously from create().
-    // Don't gate on isActive(); the scene isn't marked active until create() returns.
     this.time.delayedCall(0, () => {
       this.scene.start('MenuScene');
     });
@@ -238,31 +202,13 @@ export class PreloadScene extends Phaser.Scene {
     });
   }
 
-  startFinalizeTimeout() {
-    this.clearFinalizeTimeout();
-    this._finalizeTimeout = this.time.delayedCall(FINALIZE_TIMEOUT_MS, () => {
-      if (!this.scene.isActive('PreloadScene')) return;
-      console.warn('[PreloadScene] finalize timeout — continuing to menu');
-      this.clearFinalizeTimeout();
-      this.registry.set('assetsFinalized', true);
-      this.registry.set('assetsReady', true);
-      this.goToMenu();
-    });
-  }
-
   clearLoadTimeout() {
     this._loadTimeout?.remove();
     this._loadTimeout = null;
   }
 
-  clearFinalizeTimeout() {
-    this._finalizeTimeout?.remove();
-    this._finalizeTimeout = null;
-  }
-
   shutdown() {
     this.clearLoadTimeout();
-    this.clearFinalizeTimeout();
     this.load.off('progress');
     this.load.off('loaderror');
     this._loadBar = null;
