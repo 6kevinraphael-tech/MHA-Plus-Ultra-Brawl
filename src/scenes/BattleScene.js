@@ -39,6 +39,11 @@ import {
   leaveOnlineRoom,
 } from '../utils/onlineSession.js';
 import { applyBattleSnapshot, serializeBattleState } from '../utils/onlineFight.js';
+import {
+  HawkFeatherRing,
+  calcHawksBurstDamage,
+  getHawkFeatherMax,
+} from '../utils/hawksFeathers.js';
 
 const ROUNDS_TO_WIN = 2;
 
@@ -151,6 +156,9 @@ export class BattleScene extends Phaser.Scene {
 
     this.p1Clones = [];
     this.p2Clones = [];
+    this.hawkFeatherRing = new HawkFeatherRing(this);
+    this.p1.hawkFeatherCount = 0;
+    this.p2.hawkFeatherCount = 0;
 
     this.startRound();
     this.updatePauseButton();
@@ -257,6 +265,10 @@ export class BattleScene extends Phaser.Scene {
       }
 
       this.showDamageNumber(defender.body.x, defender.body.y - 80, damage, isSpecial);
+
+      if (attacker.config.id === 'hawks' && damage > 0) {
+        this.addHawkFeather(defender);
+      }
     });
 
     this.events.on('fighter-counter', ({ attacker, defender, damage }) => {
@@ -284,6 +296,15 @@ export class BattleScene extends Phaser.Scene {
     this.events.on('fighter-awaken', (fighter, payload) => {
       if (!this.fightStarted || this.roundOver || this.matchOver) return;
       playAwakenCinematic(this, fighter, payload ?? { label: 'AWAKENED' });
+    });
+
+    this.events.on('fighter-toga-transform', (fighter, payload) => {
+      if (!this.fightStarted || this.roundOver || this.matchOver) return;
+      this.showTogaTransformEffect(fighter, payload);
+    });
+
+    this.events.on('fighter-toga-revert', (fighter) => {
+      this.updateTogaHudName(fighter);
     });
 
     this.events.on('fighter-bloodcurdle', ({ defender }) => {
@@ -735,6 +756,8 @@ export class BattleScene extends Phaser.Scene {
       txt.destroy();
       this.currentRound += 1;
       this.clearTwiceClones();
+      this.hawkFeatherRing?.clear(this.p1);
+      this.hawkFeatherRing?.clear(this.p2);
       this.p1.resetForRound();
       this.p2.resetForRound();
       this.startRound();
@@ -850,6 +873,90 @@ export class BattleScene extends Phaser.Scene {
     const c = this.p2Input.poll();
     this.p2Input.consumeFrame();
     return c;
+  }
+
+  showTogaTransformEffect(fighter, payload) {
+    if (!fighter?.body) return;
+    const x = fighter.body.x;
+    const y = fighter.body.y - 72;
+    const asName = payload?.asName ?? 'RIVAL';
+
+    this.cameras.main.flash(140, 255, 120, 180, false);
+    const splash = this.add.circle(x, y, 24, 0xff6b9d, 0.55).setDepth(UI.fxDepth);
+    this.tweens.add({
+      targets: splash,
+      scale: 4.5,
+      alpha: 0,
+      duration: 520,
+      onComplete: () => splash.destroy(),
+    });
+
+    const tag = comicTitle(this, x, y - 48, `TRANSFORM → ${asName.split(' ').pop().toUpperCase()}`, {
+      size: 20,
+      color: '#ff6b9d',
+      depth: UI.fxDepth + 2,
+    });
+    this.tweens.add({
+      targets: tag,
+      y: y - 72,
+      alpha: 0,
+      duration: 900,
+      onComplete: () => tag.destroy(),
+    });
+
+    this.updateTogaHudName(fighter);
+  }
+
+  updateTogaHudName(fighter) {
+    const isP1 = fighter === this.p1;
+    const baseName = (isP1 ? this.p1Config : this.p2Config).name.toUpperCase();
+    const labelRef = isP1 ? this.p1Name : this.p2Name;
+    if (!labelRef) return;
+
+    if (fighter.togaDisguiseActive) {
+      labelRef.setText(`${baseName} → ${fighter.config.name.toUpperCase()}`);
+    } else if (fighter.identityConfig?.id === 'toga') {
+      labelRef.setText(baseName);
+    }
+  }
+
+  addHawkFeather(defender) {
+    if (!defender || defender.isDead) return;
+    const hawks = this.p1.config.id === 'hawks' ? this.p1 : this.p2.config.id === 'hawks' ? this.p2 : null;
+    if (!hawks) return;
+    this.hawkFeatherRing?.addFeather(defender, getHawkFeatherMax(hawks.config));
+  }
+
+  resolveHawksFeatherBurst(attacker, defender) {
+    if (!attacker || !defender || attacker.config.id !== 'hawks') return;
+
+    const count = defender.hawkFeatherCount ?? 0;
+    const damage = calcHawksBurstDamage(attacker.config, count);
+
+    const cx = defender.body.x;
+    const cy = defender.body.y - 72;
+    this.cameras.main.flash(120, 255, 120, 80, false);
+    this.cameras.main.shake(140, 0.008);
+
+    const tag = comicTitle(this, cx, cy - 50, count > 0 ? `WING BEAT ×${count}` : 'WING BEAT', {
+      size: count >= 8 ? 28 : 22,
+      color: '#e74c3c',
+      depth: UI.fxDepth + 2,
+    });
+    this.tweens.add({
+      targets: tag,
+      y: cy - 78,
+      alpha: 0,
+      duration: 700,
+      onComplete: () => tag.destroy(),
+    });
+
+    this.hawkFeatherRing?.burst(defender, () => {
+      if (damage > 0 && !defender.isDead) {
+        defender.takeDamage(damage, attacker);
+        this.showDamageNumber(cx, cy - 30, damage, true);
+      }
+    });
   }
 
   resolveHit(attacker, defender) {
@@ -1316,6 +1423,7 @@ export class BattleScene extends Phaser.Scene {
     this.p1.update(time, p1Controls, canAct);
     this.p2.update(time, p2Controls, canAct);
     this.updateTwiceClones(time, canAct);
+    this.hawkFeatherRing?.update();
 
     if (canAct) {
       if (this.p1.isDead) this.clearTwiceClonesFor(this.p1);
@@ -1343,6 +1451,8 @@ export class BattleScene extends Phaser.Scene {
     this.events.off('fighter-land');
     this.events.off('fighter-special');
     this.events.off('fighter-awaken');
+    this.events.off('fighter-toga-transform');
+    this.events.off('fighter-toga-revert');
     this.events.off('fighter-bloodcurdle');
     this.events.off('fighter-todoroki-freeze');
     this.events.off('fighter-todoroki-burn');
@@ -1367,6 +1477,8 @@ export class BattleScene extends Phaser.Scene {
     this._onlineUnsubs = null;
     this.cpu = null;
     this.clearTwiceClones();
+    this.hawkFeatherRing?.destroy();
+    this.hawkFeatherRing = null;
     this.p1?.destroy();
     this.p2?.destroy();
     this.p1 = this.p2 = null;

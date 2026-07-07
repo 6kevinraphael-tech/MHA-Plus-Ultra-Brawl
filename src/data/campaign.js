@@ -19,7 +19,7 @@ const HERO_PATH = [
     boss: null,
   },
   {
-    id: 'h4', opponent: 'twice', unlock: 'twice', stageId: 'city-streets', unlockStage: 'city-streets',
+    id: 'h4', opponent: 'twice', unlock: 'hawks', stageId: 'city-streets', unlockStage: 'city-streets',
     label: 'League Ambush', intro: 'Twice: "Double the chaos!"',
     boss: null,
   },
@@ -57,7 +57,7 @@ const VILLAIN_PATH = [
     boss: null,
   },
   {
-    id: 'v4', opponent: 'todoroki', unlock: 'todoroki', stageId: 'city-streets', unlockStage: 'city-streets',
+    id: 'v4', opponent: 'todoroki', unlock: 'toga', stageId: 'city-streets', unlockStage: 'city-streets',
     label: 'Ice & Fire', intro: 'Todoroki: "Hot and cold — that is my power."',
     boss: null,
   },

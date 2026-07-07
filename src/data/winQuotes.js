@@ -5,12 +5,14 @@ export const WIN_QUOTES = {
   todoroki: 'Hot and cold — that is my power.',
   bakugo: 'Die already! I am the future number one hero!',
   uraraka: 'Zero gravity — make it float!',
+  hawks: 'Too slow. I already had you tagged.',
   shigaraki: 'Destroy… everything.',
   allforone: 'This world needs a new ruler.',
   dabi: 'Watch the blue flames consume you.',
   stain: 'Only the worthy may call themselves heroes.',
   twice: 'Twice the fun — copy that!',
   overhaul: 'Filth… I will restructure everything.',
+  toga: 'Ooh! I want to become you!',
 };
 
 export function getWinQuote(characterId) {

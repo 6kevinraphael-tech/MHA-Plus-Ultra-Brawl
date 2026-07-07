@@ -1,4 +1,4 @@
-import { GROUND_Y, GRAVITY } from '../data/characters.js';
+import { GROUND_Y, GRAVITY, getCharacterById } from '../data/characters.js';
 import { getActiveForm, getAwakenBuff, getAwakenCinematicPayload, getImageDef } from '../data/characterImages.js';
 import {
   createCharacterSpriteInContainer,
@@ -26,6 +26,9 @@ export class Fighter {
   constructor(scene, x, config, playerIndex) {
     this.scene = scene;
     this.config = config;
+    this.identityConfig = config;
+    this.togaDisguiseActive = false;
+    this.togaDisguiseTimer = null;
     this.playerIndex = playerIndex;
     this.facing = playerIndex === 1 ? 1 : -1;
     this.opponent = null;
@@ -63,10 +66,8 @@ export class Fighter {
     this.superAwakenTimer = null;
     this.zeroGravity = null;
     this.slowUntil = 0;
-    this.freezeUntil = 0;
-    this.burnUntil = 0;
-    this.burnTimers = [];
     this.todorokiElement = 'fire';
+    this.hawkFeatherCount = 0;
 
     this.body = scene.add.container(x, GROUND_Y);
 
@@ -228,6 +229,71 @@ export class Fighter {
 
   getStatMult(key) {
     return this.getAwakenBuffs()?.[key] ?? 1;
+  }
+
+  getSpecialCost() {
+    if (this.identityConfig?.transformOnSuper && !this.togaDisguiseActive) {
+      return this.identityConfig.specialCost;
+    }
+    return this.config.specialCost;
+  }
+
+  getMeterConfig() {
+    return this.identityConfig?.transformOnSuper ? this.identityConfig : this.config;
+  }
+
+  performTogaTransform(time) {
+    if (this.togaDisguiseActive || !this.opponent || this.identityConfig?.id !== 'toga') return;
+
+    const disguise = getCharacterById(this.opponent.config.id);
+    if (!disguise) return;
+
+    this.isAttacking = true;
+    this.inAttackStartup = true;
+    this.lastAttackTime = time;
+    this.clearAttackAnimTimers();
+    this.scene.tweens.killTweensOf(this.sprite);
+    this.power -= this.identityConfig.specialCost;
+
+    SFX.special();
+    this.scene.events.emit('fighter-special', this);
+    this.setAnim('special', 0);
+
+    this.scene.time.delayedCall(280, () => {
+      this.togaDisguiseActive = true;
+      this.config = disguise;
+      this.activeForm = getActiveForm(disguise.id, this.hp / this.maxHp) ?? 'base';
+      this.todorokiElement = 'fire';
+      this.syncDisplayBaseline();
+      this.setAnim('idle', 0);
+      this.glowRing.setStrokeStyle(1, disguise.auraColor, 0.35);
+      this.scene.events.emit('fighter-toga-transform', this, {
+        asId: disguise.id,
+        asName: disguise.name,
+      });
+
+      this.togaDisguiseTimer?.remove();
+      this.togaDisguiseTimer = this.scene.time.delayedCall(
+        this.identityConfig.transformDurationMs ?? 10000,
+        () => this.revertTogaDisguise(),
+      );
+    });
+
+    this.attackAnimTimers.push(this.scene.time.delayedCall(520, () => this.finishAttackMotion()));
+  }
+
+  revertTogaDisguise() {
+    if (!this.togaDisguiseActive || this.identityConfig?.id !== 'toga') return;
+    this.togaDisguiseTimer?.remove();
+    this.togaDisguiseTimer = null;
+    this.togaDisguiseActive = false;
+    this.config = this.identityConfig;
+    this.activeForm = 'base';
+    this.superAwakenActive = false;
+    this.syncDisplayBaseline();
+    this.setAnim('idle', 0);
+    this.glowRing.setStrokeStyle(1, this.identityConfig.auraColor, 0);
+    this.scene.events.emit('fighter-toga-revert', this);
   }
 
   updateAwakenForm() {
@@ -455,7 +521,7 @@ export class Fighter {
       return;
     }
 
-    if (controls.special && this.canAttack(time, 'special') && this.power >= this.config.specialCost) {
+    if (controls.special && this.canAttack(time, 'special') && this.power >= this.getSpecialCost()) {
       this.performAttack('special', time);
       return;
     }
@@ -483,7 +549,7 @@ export class Fighter {
 
   resetForRound() {
     this.hp = this.maxHp;
-    this.power = this.config.powerStart ?? 50;
+    this.power = this.identityConfig?.powerStart ?? this.config.powerStart ?? 50;
     this.isAttacking = false;
     this.isBlocking = false;
     this.isHit = false;
@@ -502,6 +568,7 @@ export class Fighter {
     this.freezeUntil = 0;
     this.burnUntil = 0;
     this.todorokiElement = 'fire';
+    this.hawkFeatherCount = 0;
 
     this.body.setAlpha(1);
     this.body.setAngle(0);
@@ -522,6 +589,7 @@ export class Fighter {
     this.superAwakenActive = false;
     this.superAwakenTimer?.remove();
     this.superAwakenTimer = null;
+    this.revertTogaDisguise();
     this.currentAnim = 'idle';
     this.animFrame = 0;
     this.syncDisplayBaseline();
@@ -630,8 +698,28 @@ export class Fighter {
       this.body.body.setVelocityX(this.facing * burst);
       SFX.whiff();
     } else if (type === 'special') {
+      if (this.identityConfig?.transformOnSuper && !this.togaDisguiseActive) {
+        this.performTogaTransform(time);
+        return;
+      }
       if (this.config.awakenOnSuper) {
         this.performOverhaulSuper(time);
+        return;
+      }
+      if (this.config.id === 'hawks') {
+        damage = 0;
+        duration = 520;
+        range = 0;
+        animName = 'special';
+        this.power -= this.config.specialCost;
+        this.currentAttack = { type, damage, range, hit: true, launch: false, knockBoost: 1 };
+        SFX.special();
+        this.scene.events.emit('fighter-special', this);
+        this.setAnim(animName, 0);
+        const frameCount = Math.max(1, getCharacterAnimFrameCount(this.config, animName));
+        const frameMs = Math.max(50, Math.floor(duration / frameCount));
+        this.playSpecialEffect();
+        this.attackAnimTimers.push(this.scene.time.delayedCall(duration, () => this.finishAttackMotion()));
         return;
       }
       damage = this.config.id === 'twice' ? 0 : this.config.specialDamage;
@@ -794,6 +882,12 @@ export class Fighter {
       return;
     }
 
+    if (this.config.id === 'hawks') {
+      this.spawnHawksWingBeatVfx();
+      this.scene.resolveHawksFeatherBurst?.(this, this.opponent);
+      return;
+    }
+
     const fx = this.scene.add.circle(this.body.x + this.facing * 60, this.body.y - 50, 8, this.config.auraColor, 0.9);
     this.scene.tweens.add({
       targets: fx,
@@ -915,6 +1009,36 @@ export class Fighter {
         });
       }
     }
+  }
+
+  /** Hawks — wing beat burst VFX before feather detonation. */
+  spawnHawksWingBeatVfx() {
+    const y = this.body.y - 58;
+    const cx = this.body.x;
+    for (let i = 0; i < 6; i += 1) {
+      const angle = (Math.PI * 2 * i) / 6;
+      const feather = this.scene.add.image(
+        cx + Math.cos(angle) * 28,
+        y + Math.sin(angle) * 16,
+        'img-hawks-feather',
+      ).setDepth(FX_DEPTH).setDisplaySize(18, 28).setAngle(Phaser.Math.RadToDeg(angle) + 90);
+      this.scene.tweens.add({
+        targets: feather,
+        x: cx + Math.cos(angle) * 8,
+        y: y + Math.sin(angle) * 4,
+        alpha: 0,
+        duration: 380,
+        onComplete: () => feather.destroy(),
+      });
+    }
+    const ring = this.scene.add.circle(cx, y, 16, 0xe74c3c, 0.45).setDepth(FX_DEPTH - 1);
+    this.scene.tweens.add({
+      targets: ring,
+      scale: 3.5,
+      alpha: 0,
+      duration: 420,
+      onComplete: () => ring.destroy(),
+    });
   }
 
   /** Dabi — blue cremation flame VFX. */
@@ -1514,9 +1638,10 @@ export class Fighter {
   }
 
   regenPower() {
+    const meter = this.getMeterConfig();
     let regenRate = 12;
-    if (this.config.powerRegenMult) regenRate *= this.config.powerRegenMult;
-    if (this.config.id === 'megumi') regenRate = 18;
+    if (meter.powerRegenMult) regenRate *= meter.powerRegenMult;
+    if (meter.id === 'megumi') regenRate = 18;
     this.power = Math.min(this.maxPower, this.power + (regenRate * this.scene.game.loop.delta) / 1000);
   }
 
@@ -1690,7 +1815,7 @@ export class Fighter {
   }
 
   isSpecialReady() {
-    return this.power >= this.config.specialCost;
+    return this.power >= this.getSpecialCost();
   }
 
   destroy() {
@@ -1699,6 +1824,8 @@ export class Fighter {
     this.clearBurnTimers();
     this.superAwakenTimer?.remove();
     this.superAwakenTimer = null;
+    this.togaDisguiseTimer?.remove();
+    this.togaDisguiseTimer = null;
     this.scene.tweens.killTweensOf(this.sprite);
     this.scene.tweens.killTweensOf(this.body);
     if (this.hitbox?.active) this.hitbox.destroy();

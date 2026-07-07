@@ -177,6 +177,33 @@ export const CHARACTER_IMAGES = {
       hit: { key: 'img-uraraka-idle', scale: 1.0 },
     },
   },
+  hawks: {
+    displayH: 170,
+    displayW: 148,
+    portraitPose: 'idle',
+    featherKey: 'img-hawks-feather',
+    poses: {
+      idle: { key: 'img-hawks-idle', scale: 1.0 },
+      walk: { key: 'img-hawks-walk', scale: 1.0 },
+      attack: { key: 'img-hawks-attack', scale: 1.0 },
+      heavy: { key: 'img-hawks-heavy', scale: 1.0 },
+      special: { key: 'img-hawks-special', scale: 1.0 },
+      hit: { key: 'img-hawks-idle', scale: 1.0 },
+    },
+  },
+  toga: {
+    displayH: 168,
+    displayW: 152,
+    portraitPose: 'idle',
+    poses: {
+      idle: { key: 'img-toga-idle', scale: 1.0 },
+      walk: { key: 'img-toga-walk', scale: 1.0 },
+      attack: { key: 'img-toga-attack', scale: 1.0 },
+      heavy: { key: 'img-toga-heavy', scale: 1.0 },
+      special: { key: 'img-toga-special', scale: 1.0 },
+      hit: { key: 'img-toga-idle', scale: 1.0 },
+    },
+  },
   overhaul: {
     displayH: 174,
     displayW: 196,
@@ -213,6 +240,7 @@ export const CHARACTER_IMAGES = {
 };
 
 function pathFor(key) {
+  if (key === 'img-hawks-feather') return '/assets/sprites/mha/hawks/feather.png';
   const transform = key.match(/^img-([a-z]+)-awaken-transform$/);
   if (transform) return `/assets/sprites/mha/${transform[1]}/awaken-transform.png`;
   const awaken = key.match(/^img-([a-z]+)-awaken-([a-z]+)$/);
@@ -232,9 +260,9 @@ export const CHARACTER_IMAGE_ASSETS = (() => {
         if (!seen.has(pose.key)) seen.set(pose.key, pathFor(pose.key));
       }
     }
-    if (def.awakenTransformKey) {
-      const p = pathFor(def.awakenTransformKey);
-      if (p && !seen.has(def.awakenTransformKey)) seen.set(def.awakenTransformKey, p);
+    if (def.featherKey) {
+      const p = pathFor(def.featherKey);
+      if (p && !seen.has(def.featherKey)) seen.set(def.featherKey, p);
     }
   }
   return [...seen.entries()].filter(([, p]) => p);
@@ -258,7 +286,7 @@ export function getAssetsForCharacter(characterId) {
   for (const poses of poseSets) {
     for (const pose of Object.values(poses)) addKey(pose.key);
   }
-  if (def.awakenTransformKey) addKey(def.awakenTransformKey);
+  if (def.featherKey) addKey(def.featherKey);
   return out;
 }
 
