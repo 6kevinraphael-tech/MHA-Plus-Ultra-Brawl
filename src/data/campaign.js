@@ -24,8 +24,8 @@ const HERO_PATH = [
     boss: null,
   },
   {
-    id: 'h5', opponent: 'dabi', unlock: 'dabi', stageId: 'forest-camp', unlockStage: 'forest-camp',
-    label: 'Blue Flames', intro: 'Dabi: "Watch the world burn."',
+    id: 'h5', opponent: 'dabi', unlock: 'endeavor', stageId: 'forest-camp', unlockStage: 'forest-camp',
+    label: 'Hellflame', intro: 'Dabi: "Watch the world burn."',
     boss: null,
   },
   {

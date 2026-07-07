@@ -7,7 +7,9 @@ export class BootScene extends Phaser.Scene {
   }
 
   create() {
-    const cached = this.registry.get('assetsReady') && allAssetsLoaded(this);
+    const cached = this.registry.get('assetsReady')
+      && this.registry.get('assetsFinalized')
+      && allAssetsLoaded(this);
     this.time.delayedCall(0, () => {
       this.scene.start(cached ? 'MenuScene' : 'PreloadScene');
     });

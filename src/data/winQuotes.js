@@ -6,6 +6,7 @@ export const WIN_QUOTES = {
   bakugo: 'Die already! I am the future number one hero!',
   uraraka: 'Zero gravity — make it float!',
   hawks: 'Too slow. I already had you tagged.',
+  endeavor: 'Flames forged in hell — accept your defeat!',
   shigaraki: 'Destroy… everything.',
   allforone: 'This world needs a new ruler.',
   dabi: 'Watch the blue flames consume you.',

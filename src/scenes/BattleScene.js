@@ -327,6 +327,41 @@ export class BattleScene extends Phaser.Scene {
       this.cameras.main.shake(160, 0.008);
       this.spawnDust(defender.body.x, GROUND_Y);
     });
+
+    this.events.on('fighter-endeavor-overheat', (fighter) => {
+      this.showEndeavorOverheatEffect(fighter);
+    });
+  }
+
+  showEndeavorOverheatEffect(fighter) {
+    if (!fighter?.body) return;
+    const x = fighter.body.x;
+    const y = fighter.body.y - 72;
+
+    this.cameras.main.flash(120, 80, 160, 255, false);
+    this.cameras.main.shake(180, 0.006);
+
+    const ring = this.add.circle(x, y, 20, 0x4488ff, 0.5).setDepth(UI.fxDepth);
+    this.tweens.add({
+      targets: ring,
+      scale: 3,
+      alpha: 0,
+      duration: 560,
+      onComplete: () => ring.destroy(),
+    });
+
+    const tag = comicTitle(this, x, y - 38, 'OVERHEAT', {
+      size: 20,
+      color: '#66aaff',
+      depth: UI.fxDepth + 1,
+    });
+    this.tweens.add({
+      targets: tag,
+      y: tag.y - 28,
+      alpha: 0,
+      duration: 900,
+      onComplete: () => tag.destroy(),
+    });
   }
 
   showBloodcurdleEffect(defender) {
@@ -795,6 +830,17 @@ export class BattleScene extends Phaser.Scene {
     this.p1PowerLabel = label(this, 96, 66, 'QUIRK OUTPUT', { fontSize: '8px', color: UI.textDim, letterSpacing: 1, originX: 0 }).setDepth(UI.hudDepth);
     this.p2PowerLabel = label(this, GAME_WIDTH - 96, 66, 'QUIRK OUTPUT', { fontSize: '8px', color: UI.textDim, letterSpacing: 1, originX: 1 }).setDepth(UI.hudDepth);
 
+    this.p1HeatBar = null;
+    this.p2HeatBar = null;
+    if (this.p1Config.id === 'endeavor') {
+      this.p1HeatBar = createAngledMeter(this, 96, 76, 240, 5, { align: 'left', fill: 0xff6600, border: 0xaa3300 });
+      label(this, 96, 86, 'HEAT', { fontSize: '7px', color: UI.textDim, letterSpacing: 1, originX: 0 }).setDepth(UI.hudDepth);
+    }
+    if (this.p2Config.id === 'endeavor') {
+      this.p2HeatBar = createAngledMeter(this, GAME_WIDTH - 96, 76, 240, 5, { align: 'right', fill: 0xff6600, border: 0xaa3300 });
+      label(this, GAME_WIDTH - 96, 86, 'HEAT', { fontSize: '7px', color: UI.textDim, letterSpacing: 1, originX: 1 }).setDepth(UI.hudDepth);
+    }
+
     this.timerText = comicTitle(this, GAME_WIDTH / 2, 40, '99', { size: 30, color: UI.accentText, depth: UI.hudDepth });
 
     this.createRoundPips();
@@ -1100,6 +1146,23 @@ export class BattleScene extends Phaser.Scene {
     setAngledMeter(this.p2PowerBar, this.p2.power / this.p2.maxPower);
     if (!p1Ready) this.p1PowerLabel.setColor(UI.textDim);
     if (!p2Ready) this.p2PowerLabel.setColor(UI.textDim);
+
+    if (this.p1HeatBar && this.p1.config.id === 'endeavor') {
+      const max = this.p1.getHeatMax();
+      const ratio = max > 0 ? this.p1.heat / max : 0;
+      const atMax = this.p1.heat >= max;
+      this.p1HeatBar.fill = atMax ? 0xff2222 : 0xff6600;
+      this.p1HeatBar.border = atMax ? 0xff4444 : 0xaa3300;
+      setAngledMeter(this.p1HeatBar, ratio);
+    }
+    if (this.p2HeatBar && this.p2.config.id === 'endeavor') {
+      const max = this.p2.getHeatMax();
+      const ratio = max > 0 ? this.p2.heat / max : 0;
+      const atMax = this.p2.heat >= max;
+      this.p2HeatBar.fill = atMax ? 0xff2222 : 0xff6600;
+      this.p2HeatBar.border = atMax ? 0xff4444 : 0xaa3300;
+      setAngledMeter(this.p2HeatBar, ratio);
+    }
   }
 
   endMatch(roundWinner) {
@@ -1458,6 +1521,7 @@ export class BattleScene extends Phaser.Scene {
     this.events.off('fighter-todoroki-burn');
     this.events.off('fighter-zero-gravity');
     this.events.off('fighter-zero-gravity-drop');
+    this.events.off('fighter-endeavor-overheat');
     cleanupAwakenCinematic(this);
     if (this._onVisibility) {
       document.removeEventListener('visibilitychange', this._onVisibility);

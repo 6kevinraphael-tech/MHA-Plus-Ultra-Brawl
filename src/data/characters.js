@@ -124,6 +124,28 @@ export const HERO_CHARACTERS = [
     rangeBonus: { light: 20, heavy: 30, special: 36, dash: 12 },
     preferredRange: 90,
   }),
+  hero('endeavor', 'Enji Todoroki', 'Hellflame', 0, 0, {
+    color: 0x8b2500,
+    auraColor: 0xff6600,
+    hp: 112,
+    speed: 268,
+    lightDamage: 10,
+    heavyDamage: 16,
+    specialName: 'Prominence Burn',
+    specialDesc: 'Vent all heat in a blazing lunge — damage scales with stored heat',
+    passive: 'Hellflame — heat builds on attack and when hit; more heat = more damage; max heat 7s overheats',
+    specialDamage: 24,
+    specialCost: 32,
+    heatMax: 100,
+    heatDamageBonusMax: 0.35,
+    heatGainOnHit: 10,
+    heatGainWhenHit: 8,
+    heatOverheatMs: 7000,
+    heatOverheatStunMs: 5000,
+    blockReduction: 0.2,
+    rangeBonus: { light: 28, heavy: 44, special: 52, dash: 10 },
+    preferredRange: 88,
+  }),
 ];
 
 /** Player 2 — Villains */

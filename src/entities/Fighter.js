@@ -15,6 +15,8 @@ const ATTACK_COOLDOWN = 280;
 const COMBO_WINDOW_MS = 650;
 const HITSTUN_MS = 320;
 const BLOODCURDLE_STUN_MS = 500;
+const ENDEAVOR_OVERHEAT_MS = 7000;
+const ENDEAVOR_OVERHEAT_STUN_MS = 5000;
 const TODOROKI_FREEZE_MS = 1100;
 const TODOROKI_BURN_TICK_MS = 400;
 const TODOROKI_BURN_TICKS = 4;
@@ -68,6 +70,9 @@ export class Fighter {
     this.slowUntil = 0;
     this.todorokiElement = 'fire';
     this.hawkFeatherCount = 0;
+    this.heat = 0;
+    this.heatMaxAtSince = null;
+    this.overheatUntil = 0;
 
     this.body = scene.add.container(x, GROUND_Y);
 
@@ -296,6 +301,68 @@ export class Fighter {
     this.scene.events.emit('fighter-toga-revert', this);
   }
 
+  getHeatMax() {
+    return this.config.heatMax ?? 100;
+  }
+
+  isOverheated(time = this.scene?.time?.now ?? 0) {
+    return this.overheatUntil > 0 && time < this.overheatUntil;
+  }
+
+  addHeat(amount) {
+    if (this.config.id !== 'endeavor' || this.isDead || amount <= 0) return;
+    const max = this.getHeatMax();
+    const prev = this.heat;
+    this.heat = Math.min(max, this.heat + amount);
+    if (this.heat >= max && prev < max) {
+      this.heatMaxAtSince = this.scene.time.now;
+    } else if (this.heat < max) {
+      this.heatMaxAtSince = null;
+    }
+  }
+
+  ventHeat() {
+    this.heat = 0;
+    this.heatMaxAtSince = null;
+  }
+
+  getHeatDamageMult() {
+    if (this.config.id !== 'endeavor') return 1;
+    const ratio = this.heat / this.getHeatMax();
+    const bonus = this.config.heatDamageBonusMax ?? 0.35;
+    return 1 + ratio * bonus;
+  }
+
+  updateEndeavorHeat(time) {
+    if (this.config.id !== 'endeavor' || this.isDead || this.isOverheated(time)) return;
+    const max = this.getHeatMax();
+    if (this.heat >= max && this.heatMaxAtSince != null) {
+      const limit = this.config.heatOverheatMs ?? ENDEAVOR_OVERHEAT_MS;
+      if (time - this.heatMaxAtSince >= limit) {
+        this.triggerOverheat(time);
+      }
+    }
+  }
+
+  triggerOverheat(time) {
+    const stun = this.config.heatOverheatStunMs ?? ENDEAVOR_OVERHEAT_STUN_MS;
+    this.overheatUntil = time + stun;
+    this.ventHeat();
+    this.clearAttackAnimTimers();
+    this.isAttacking = false;
+    this.inAttackStartup = false;
+    this.isDashing = false;
+    this.currentAttack = null;
+    this.body.body.setVelocity(0, 0);
+    this.setAnim('hit', 0);
+    this.sprite.setTint(0x66aaff);
+    this.scene.events.emit('fighter-endeavor-overheat', this);
+    this.scene.time.delayedCall(stun, () => {
+      this.overheatUntil = 0;
+      if (!this.isBlocking && !this.burnUntil && !this.freezeUntil) this.sprite.clearTint();
+    });
+  }
+
   updateAwakenForm() {
     const newForm = getActiveForm(this.config.id, this.hp / this.maxHp);
     if (newForm == null) return;
@@ -365,6 +432,7 @@ export class Fighter {
   update(time, controls, canAct = true) {
     if (this.isDead) return;
 
+    this.updateEndeavorHeat(time);
     this.updateAwakenForm();
 
     const body = this.body.body;
@@ -389,7 +457,7 @@ export class Fighter {
     this.maybeAfterimage(time, body);
     this.faceOpponent();
 
-    if (!canAct) {
+    if (!canAct || this.isOverheated(time)) {
       body.setVelocityX(0);
       this.syncHitbox();
       this.updateAnimation(time);
@@ -487,6 +555,10 @@ export class Fighter {
       body.setVelocityX(0);
       return;
     }
+    if (this.isOverheated(this.scene.time.now)) {
+      body.setVelocityX(0);
+      return;
+    }
 
     const moveSpeed = this.config.speed * this.getStatMult('speedMult');
     const slowMult = this.slowUntil && this.scene.time.now < this.slowUntil ? 0.52 : 1;
@@ -509,7 +581,7 @@ export class Fighter {
   }
 
   processAttacks(controls, time) {
-    if (this.isBlocking || this.isAttacking) return;
+    if (this.isBlocking || this.isAttacking || this.isOverheated(time)) return;
 
     if (!this.onGround && (controls.aerial || controls.light) && this.canAttack(time, 'aerial')) {
       this.performAttack('aerial', time);
@@ -569,6 +641,9 @@ export class Fighter {
     this.burnUntil = 0;
     this.todorokiElement = 'fire';
     this.hawkFeatherCount = 0;
+    this.heat = 0;
+    this.heatMaxAtSince = null;
+    this.overheatUntil = 0;
 
     this.body.setAlpha(1);
     this.body.setAngle(0);
@@ -644,6 +719,7 @@ export class Fighter {
     if (this.config.id === 'stain') {
       return type === 'special' ? 22 : type === 'heavy' ? 16 : 12;
     }
+    if (this.config.id === 'endeavor' && type === 'special') return 28;
     if (type === 'special') return this.usesImageArt ? 18 : 14;
     if (type === 'heavy') return this.usesImageArt ? 14 : 12;
     return this.usesImageArt ? 10 : 10;
@@ -722,6 +798,20 @@ export class Fighter {
         this.attackAnimTimers.push(this.scene.time.delayedCall(duration, () => this.finishAttackMotion()));
         return;
       }
+      if (this.config.id === 'endeavor') {
+        const heatMult = this.getHeatDamageMult();
+        const storedHeat = this.heat;
+        this.ventHeat();
+        damage = Math.round((this.config.specialDamage + storedHeat * 0.22) * heatMult);
+        duration = 560;
+        range = ATTACK_RANGE + 38;
+        animName = 'special';
+        knockBoost = 1.25;
+        this.power -= this.config.specialCost;
+        this.isDashing = true;
+        this.body.body.setVelocityX(this.facing * this.config.speed * 3.1);
+        this.playSpecialEffect();
+      } else {
       damage = this.config.id === 'twice' ? 0 : this.config.specialDamage;
       duration = (this.config.id === 'allforone' || this.config.id === 'dabi') ? 520 : this.config.id === 'twice' ? 420 : 480;
       range = this.config.id === 'twice' ? ATTACK_RANGE : ATTACK_RANGE + 30;
@@ -731,8 +821,16 @@ export class Fighter {
         element = isFire ? 'fire' : 'ice';
         this.todorokiElement = isFire ? 'ice' : 'fire';
       }
-      this.power -= this.config.specialCost;
-      this.playSpecialEffect(element);
+      if (this.config.id !== 'endeavor') {
+        this.power -= this.config.specialCost;
+        this.playSpecialEffect(element);
+      }
+      }
+    }
+
+    if (this.config.id === 'endeavor' && type !== 'special') {
+      const gain = type === 'heavy' ? 14 : type === 'light' ? 8 : type === 'dash' ? 6 : 10;
+      this.addHeat(gain);
     }
 
     range = this.applyAttackRange(type, range);
@@ -765,11 +863,15 @@ export class Fighter {
       this.todorokiElement = isFire ? 'ice' : 'fire';
     }
 
+    if (this.config.id === 'endeavor') {
+      damage = Math.round(damage * this.getHeatDamageMult());
+    }
+
     damage = Math.round(damage * this.getStatMult('damageMult'));
 
     this.currentAttack = { type, damage, range, hit: false, launch, knockBoost, element };
 
-    if (type !== 'dash') {
+    if (type !== 'dash' && !(this.config.id === 'endeavor' && type === 'special')) {
       this.body.body.setVelocityX(0);
     }
 
@@ -789,6 +891,12 @@ export class Fighter {
     if (this.config.id === 'dabi' && (type === 'light' || type === 'heavy')) {
       this.scene.time.delayedCall(type === 'light' ? 42 : 55, () => {
         if (this.isAttacking) this.spawnDabiFire(type === 'heavy', false);
+      });
+    }
+
+    if (this.config.id === 'endeavor' && (type === 'light' || type === 'heavy')) {
+      this.scene.time.delayedCall(type === 'light' ? 40 : 55, () => {
+        if (this.isAttacking) this.spawnEndeavorFlame(type === 'heavy', false);
       });
     }
 
@@ -885,6 +993,11 @@ export class Fighter {
     if (this.config.id === 'hawks') {
       this.spawnHawksWingBeatVfx();
       this.scene.resolveHawksFeatherBurst?.(this, this.opponent);
+      return;
+    }
+
+    if (this.config.id === 'endeavor') {
+      this.spawnEndeavorProminenceBurn();
       return;
     }
 
@@ -1038,6 +1151,48 @@ export class Fighter {
       alpha: 0,
       duration: 420,
       onComplete: () => ring.destroy(),
+    });
+  }
+
+  /** Endeavor — orange hellflame burst. */
+  spawnEndeavorFlame(isHeavy, isSpecial) {
+    const y = this.body.y - 54;
+    const startX = this.body.x + this.facing * 44;
+    const length = isSpecial ? 200 : isHeavy ? 150 : 95;
+    const radius = isSpecial ? 18 : isHeavy ? 13 : 9;
+
+    const glow = this.scene.add.circle(startX, y, radius, 0xff6600, 0.4).setDepth(FX_DEPTH - 1);
+    const core = this.scene.add.circle(startX, y, radius * 0.75, 0xffaa00, 0.9).setDepth(FX_DEPTH);
+    this.scene.tweens.add({
+      targets: [glow, core],
+      x: startX + this.facing * length,
+      scaleX: isSpecial ? 3.8 : isHeavy ? 2.8 : 2,
+      scaleY: isSpecial ? 2.2 : 1.6,
+      alpha: 0,
+      duration: isSpecial ? 420 : 300,
+      onComplete: () => {
+        glow.destroy();
+        core.destroy();
+      },
+    });
+  }
+
+  spawnEndeavorProminenceBurn() {
+    const y = this.body.y - 56;
+    const x = this.body.x + this.facing * 50;
+    const ring = this.scene.add.circle(x, y, 22, 0xff4400, 0.55).setDepth(FX_DEPTH);
+    const burst = this.scene.add.circle(x, y, 12, 0xffee88, 0.95).setDepth(FX_DEPTH + 1);
+    this.scene.tweens.add({
+      targets: [ring, burst],
+      x: x + this.facing * 120,
+      scaleX: 5,
+      scaleY: 3.5,
+      alpha: 0,
+      duration: 480,
+      onComplete: () => {
+        ring.destroy();
+        burst.destroy();
+      },
     });
   }
 
@@ -1615,6 +1770,17 @@ export class Fighter {
           : this.config.id === 'overhaul' ? 0xcc88ff
             : 0xddbbff;
         this.sprite.setTint(tint);
+      } else if (this.config.id === 'endeavor' && this.heat > 0) {
+        const ratio = this.heat / this.getHeatMax();
+        const warm = Phaser.Display.Color.Interpolate.ColorWithColor(
+          { r: 255, g: 255, b: 255 },
+          { r: 255, g: 140, b: 40 },
+          100,
+          Math.round(ratio * 100),
+        );
+        this.sprite.setTint(Phaser.Display.Color.GetColor(warm.r, warm.g, warm.b));
+      } else if (this.isOverheated(time)) {
+        this.sprite.setTint(0x66aaff);
       } else {
         this.sprite.clearTint();
       }
@@ -1712,6 +1878,10 @@ export class Fighter {
     }
 
     if (finalDamage > 0) {
+      if (this.config.id === 'endeavor') {
+        this.addHeat(this.config.heatGainWhenHit ?? 8);
+      }
+
       this.isHit = true;
       this.comboCount = 0;
       this.comboChain = 0;
@@ -1812,6 +1982,10 @@ export class Fighter {
     }
 
     this.power = Math.min(this.maxPower, this.power + 5);
+
+    if (this.config.id === 'endeavor') {
+      this.addHeat(this.config.heatGainOnHit ?? 10);
+    }
   }
 
   isSpecialReady() {

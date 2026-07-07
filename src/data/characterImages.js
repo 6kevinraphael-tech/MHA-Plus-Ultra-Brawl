@@ -191,6 +191,19 @@ export const CHARACTER_IMAGES = {
       hit: { key: 'img-hawks-idle', scale: 1.0 },
     },
   },
+  endeavor: {
+    displayH: 176,
+    displayW: 168,
+    portraitPose: 'idle',
+    poses: {
+      idle: { key: 'img-endeavor-idle', scale: 1.0 },
+      walk: { key: 'img-endeavor-walk', scale: 1.0 },
+      attack: { key: 'img-endeavor-attack', scale: 1.0 },
+      heavy: { key: 'img-endeavor-heavy', scale: 1.0 },
+      special: { key: 'img-endeavor-special', scale: 1.0 },
+      hit: { key: 'img-endeavor-idle', scale: 1.0 },
+    },
+  },
   toga: {
     displayH: 168,
     displayW: 152,
