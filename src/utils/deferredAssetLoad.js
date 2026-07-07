@@ -37,8 +37,20 @@ export function isAllAssetsReady(scene) {
   return scene.registry.get('allAssetsReady') === true;
 }
 
-/** Load all game art in the background after the menu is visible. */
+/** Load game art in the background — must NOT run during scene create(). */
 export function ensureDeferredAssets(scene) {
+  if (isAllAssetsReady(scene)) return;
+
+  const begin = () => startDeferredLoad(scene);
+
+  if (scene.time) {
+    scene.time.delayedCall(0, begin);
+  } else {
+    window.setTimeout(begin, 0);
+  }
+}
+
+function startDeferredLoad(scene) {
   if (isAllAssetsReady(scene)) return;
 
   const allMissing = [

@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { GAME_WIDTH, GAME_HEIGHT } from '../data/characters.js';
 import {
   coverImage,
+  comicTitle,
   label,
   rgba,
   UI,
@@ -59,9 +60,15 @@ export class MenuScene extends Phaser.Scene {
     this.diffIndex = this.registry.get('diffIndex') ?? 1;
     this.row = 0;
 
+    comicTitle(this, GAME_WIDTH / 2, 72, "ALL'S JUSTICE", {
+      size: 28, color: UI.goldText, depth: 5,
+    });
+    label(this, GAME_WIDTH / 2, 108, 'PLUS ULTRA BRAWL', {
+      fontSize: '10px', color: UI.textMuted, letterSpacing: 4, depth: 5,
+    });
+
     this.applyMenuBackground();
     this.events.on('deferred-assets-ready', () => this.applyMenuBackground());
-    ensureDeferredAssets(this);
 
     const shade = this.add.graphics().setDepth(-90);
     shade.fillGradientStyle(0x000000, 0x000000, 0x000000, 0x000000, 0, 0, 0, 0.88);
@@ -140,7 +147,12 @@ export class MenuScene extends Phaser.Scene {
     this._unbindConfirm = bindConfirmKeys(this, () => this.start());
     this.time.delayedCall(80, () => focusGameCanvas(this.game));
 
-    this.cameras.main.fadeIn(400);
+    const cam = this.cameras.main;
+    cam.resetFX();
+    cam.setAlpha(1);
+
+    // Never start the loader during create() — Phaser won't render the scene until loading finishes.
+    this.time.delayedCall(300, () => ensureDeferredAssets(this));
   }
 
   setupMusicUnlock() {
