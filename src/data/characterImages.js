@@ -177,6 +177,39 @@ export const CHARACTER_IMAGES = {
       hit: { key: 'img-uraraka-idle', scale: 1.0 },
     },
   },
+  overhaul: {
+    displayH: 174,
+    displayW: 196,
+    portraitPose: 'idle',
+    portraitForm: 'base',
+    awakenOnSuper: true,
+    awakenDurationMs: 5000,
+    awakenHealRatio: 0.25,
+    awakenLabel: 'OVERHAUL — FUSED FORM',
+    awakenTransformKey: 'img-overhaul-awaken-transform',
+    awakenTheme: 'shigaraki-afo',
+    awakenBuff: {
+      damageMult: 1.12,
+    },
+    forms: {
+      base: {
+        idle: { key: 'img-overhaul-idle', scale: 1.0 },
+        walk: { key: 'img-overhaul-idle', scale: 1.0 },
+        attack: { key: 'img-overhaul-attack', scale: 1.0 },
+        heavy: { key: 'img-overhaul-heavy', scale: 1.0 },
+        special: { key: 'img-overhaul-special', scale: 1.0 },
+        hit: { key: 'img-overhaul-idle', scale: 1.0 },
+      },
+      awakened: {
+        idle: { key: 'img-overhaul-awaken-idle', scale: 1.0 },
+        walk: { key: 'img-overhaul-awaken-idle', scale: 1.0 },
+        attack: { key: 'img-overhaul-awaken-attack', scale: 1.0 },
+        heavy: { key: 'img-overhaul-awaken-heavy', scale: 1.0 },
+        special: { key: 'img-overhaul-awaken-special', scale: 1.0 },
+        hit: { key: 'img-overhaul-awaken-idle', scale: 1.0 },
+      },
+    },
+  },
 };
 
 function pathFor(key) {
@@ -248,12 +281,16 @@ export function getImageDef(characterId) {
   return CHARACTER_IMAGES[characterId] ?? null;
 }
 
-/** Returns 'base' | 'awakened' | null (null = single-form character). */
+/** Returns 'base' | 'awakened' | null (null = single-form or super-triggered only). */
 export function getActiveForm(characterId, hpRatio) {
   const def = CHARACTER_IMAGES[characterId];
-  if (!def?.forms || def.awakenAt == null) return null;
+  if (!def?.forms || def.awakenAt == null || def.awakenOnSuper) return null;
   if (hpRatio <= def.awakenAt && hpRatio > 0) return 'awakened';
   return 'base';
+}
+
+export function isSuperAwakenCharacter(characterId) {
+  return !!CHARACTER_IMAGES[characterId]?.awakenOnSuper;
 }
 
 export function getAwakenBuff(characterId, form) {

@@ -188,6 +188,24 @@ export const VILLAIN_CHARACTERS = [
     cloneDamageMax: 8,
     preferredRange: 90,
   }),
+  villain('overhaul', 'Kai Chisaki', 'Overhaul', 4, 1, {
+    color: 0x4a1942,
+    auraColor: 0x9b59b6,
+    hp: 108,
+    speed: 266,
+    lightDamage: 10,
+    heavyDamage: 16,
+    specialName: 'Overhaul',
+    specialDesc: 'Full meter — fuse into monstrous form, heal 25% HP, +12% damage for 5s',
+    passive: 'Restructuring — slow super build; awakened fusion on full meter',
+    specialDamage: 0,
+    specialCost: 100,
+    powerRegenMult: 0.38,
+    powerStart: 15,
+    blockReduction: 0.18,
+    awakenOnSuper: true,
+    preferredRange: 68,
+  }),
 ];
 
 export const ALL_CHARACTERS = [...HERO_CHARACTERS, ...VILLAIN_CHARACTERS];

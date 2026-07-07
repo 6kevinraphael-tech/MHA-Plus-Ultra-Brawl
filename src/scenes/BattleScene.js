@@ -63,7 +63,7 @@ export class BattleScene extends Phaser.Scene {
     this.difficulty = data.difficulty ?? 'normal';
     this.playerSide = data.playerSide ?? this.p1Config?.faction ?? 'hero';
     this.isCpu = this.mode === '1p' || this.mode === 'campaign';
-    this.stageId = data.stageId ?? this.registry.get('stageId') ?? 'ua-high';
+    this.stageId = data.stageId ?? this.registry.get('stageId') ?? 'ua-entrance';
     this.arena = getArenaById(this.stageId);
     this.arcade = data.arcade ?? null;
     this._bossMods = this.p2Config?.bossMods ?? null;

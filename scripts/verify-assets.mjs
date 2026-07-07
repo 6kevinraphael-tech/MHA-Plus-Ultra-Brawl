@@ -10,9 +10,12 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 const STATIC = [
   ...UI_ASSETS,
-  ['bg-mha-ua-high', '/assets/backgrounds/mha-ua-high.png'],
-  ['bg-mha-blue-flames', '/assets/backgrounds/mha-blue-flames.png'],
-  ['bg-mha-ruins', '/assets/backgrounds/mha-ruins.png'],
+  ['bg-ua-entrance', '/assets/backgrounds/ua-entrance.png'],
+  ['bg-ua-campus', '/assets/backgrounds/ua-campus.png'],
+  ['bg-city-streets', '/assets/backgrounds/city-streets.png'],
+  ['bg-dojo', '/assets/backgrounds/dojo.png'],
+  ['bg-ground-beta', '/assets/backgrounds/ground-beta.png'],
+  ['bg-forest-camp', '/assets/backgrounds/forest-camp.png'],
   ['mha-roster', '/assets/mha-roster.png'],
   ...CHARACTER_IMAGE_ASSETS,
 ];

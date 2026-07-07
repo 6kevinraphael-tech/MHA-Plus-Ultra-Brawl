@@ -1,11 +1,11 @@
 import Phaser from 'phaser';
 import { GAME_WIDTH, GAME_HEIGHT, GROUND_Y } from '../data/characters.js';
-import { getArenaById } from '../data/backgrounds.js';
+import { getArenaById, pickRandomArena } from '../data/backgrounds.js';
 import { applySmoothFilter } from '../data/spriteSheets.js';
 import { label, UI } from './uiTheme.js';
 
 export function drawArena(scene, arena) {
-  const def = arena?.imageKey ? arena : getArenaById(arena?.id ?? 'ua-high');
+  const def = arena?.imageKey ? arena : getArenaById(arena?.id ?? 'ua-entrance');
 
   if (scene.textures.exists(def.imageKey)) {
     applySmoothFilter(scene, def.imageKey);
@@ -106,5 +106,5 @@ function spawnParticle(scene, cfg) {
 }
 
 export function getRandomArena() {
-  return getArenaById(['ua-high', 'blue-flames', 'ruins'][Math.floor(Math.random() * 3)]);
+  return pickRandomArena();
 }

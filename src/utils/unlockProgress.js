@@ -8,7 +8,7 @@ const STORAGE_KEY = 'cursed-clash-progress-v1';
 const DEFAULT_PROGRESS = {
   unlockedHeroes: ['deku', 'uraraka'],
   unlockedVillains: ['shigaraki', 'dabi'],
-  unlockedStages: ['ua-high'],
+  unlockedStages: ['ua-entrance'],
   campaign: {
     hero: { stageIndex: 0, complete: false },
     villain: { stageIndex: 0, complete: false },
@@ -16,7 +16,25 @@ const DEFAULT_PROGRESS = {
   secretUnlocked: false,
 };
 
-let cache = null;
+const LEGACY_STAGE_IDS = {
+  'ua-high': 'ua-entrance',
+  'blue-flames': 'city-streets',
+  ruins: 'ground-beta',
+};
+
+const ALL_STAGE_IDS = [
+  'ua-entrance',
+  'ua-campus',
+  'city-streets',
+  'dojo',
+  'ground-beta',
+  'forest-camp',
+];
+
+function normalizeStageId(stageId) {
+  return LEGACY_STAGE_IDS[stageId] ?? stageId;
+}
+
 
 function readRaw() {
   if (typeof localStorage === 'undefined') return null;
@@ -83,7 +101,9 @@ export function isCharacterUnlocked(id) {
 
 export function isStageUnlocked(stageId) {
   const p = loadProgress();
-  return p.secretUnlocked || p.unlockedStages.includes(stageId);
+  const resolved = normalizeStageId(stageId);
+  if (p.secretUnlocked) return true;
+  return p.unlockedStages.some((id) => normalizeStageId(id) === resolved);
 }
 
 export function unlockCharacter(id) {
@@ -100,8 +120,9 @@ export function unlockCharacter(id) {
 
 export function unlockStage(stageId) {
   const p = loadProgress();
-  if (!p.unlockedStages.includes(stageId)) {
-    p.unlockedStages = [...p.unlockedStages, stageId];
+  const resolved = normalizeStageId(stageId);
+  if (!p.unlockedStages.some((id) => normalizeStageId(id) === resolved)) {
+    p.unlockedStages = [...p.unlockedStages, resolved];
     saveProgress(p);
     return true;
   }
@@ -120,7 +141,7 @@ export function setCampaignProgress(side, stageIndex, complete = false) {
     p.secretUnlocked = true;
     p.unlockedHeroes = HERO_CHARACTERS.map((c) => c.id);
     p.unlockedVillains = VILLAIN_CHARACTERS.map((c) => c.id);
-    p.unlockedStages = ['ua-high', 'blue-flames', 'ruins'];
+    p.unlockedStages = [...ALL_STAGE_IDS];
   }
   saveProgress(p);
   return p;

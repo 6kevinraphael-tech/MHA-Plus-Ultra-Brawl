@@ -10,6 +10,7 @@ export const WIN_QUOTES = {
   dabi: 'Watch the blue flames consume you.',
   stain: 'Only the worthy may call themselves heroes.',
   twice: 'Twice the fun — copy that!',
+  overhaul: 'Filth… I will restructure everything.',
 };
 
 export function getWinQuote(characterId) {

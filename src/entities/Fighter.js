@@ -32,7 +32,7 @@ export class Fighter {
 
     this.maxHp = config.hp;
     this.hp = config.hp;
-    this.power = 50;
+    this.power = config.powerStart ?? 50;
     this.maxPower = 100;
 
     this.isAttacking = false;
@@ -59,6 +59,8 @@ export class Fighter {
     this.baseSpriteY = 0;
     this.activeForm = getActiveForm(config.id, 1) ?? 'base';
     this.awakenTriggered = false;
+    this.superAwakenActive = false;
+    this.superAwakenTimer = null;
     this.zeroGravity = null;
     this.slowUntil = 0;
     this.freezeUntil = 0;
@@ -242,6 +244,56 @@ export class Fighter {
       this.setAnim(this.currentAnim, this.animFrame);
       this.syncDisplayBaseline();
     }
+  }
+
+  activateSuperAwaken() {
+    const def = getImageDef(this.config.id);
+    if (!def?.forms || !def.awakenOnSuper) return;
+
+    this.superAwakenActive = true;
+    this.activeForm = 'awakened';
+    const healRatio = def.awakenHealRatio ?? 0.25;
+    this.hp = Math.min(this.maxHp, this.hp + Math.round(this.maxHp * healRatio));
+
+    const payload = getAwakenCinematicPayload(this.config.id);
+    this.scene.events.emit('fighter-awaken', this, payload);
+    this.setAnim('idle', 0);
+    this.syncDisplayBaseline();
+
+    this.superAwakenTimer?.remove();
+    const duration = def.awakenDurationMs ?? 5000;
+    this.superAwakenTimer = this.scene.time.delayedCall(duration, () => this.revertSuperAwaken());
+  }
+
+  revertSuperAwaken() {
+    if (!getImageDef(this.config.id)?.awakenOnSuper) return;
+    this.superAwakenActive = false;
+    this.superAwakenTimer = null;
+    this.activeForm = 'base';
+    this.setAnim(this.isHit ? 'hit' : 'idle', 0);
+    this.syncDisplayBaseline();
+  }
+
+  performOverhaulSuper(time) {
+    if (this.superAwakenActive) return;
+
+    this.isAttacking = true;
+    this.inAttackStartup = true;
+    this.lastAttackTime = time;
+    this.clearAttackAnimTimers();
+    this.scene.tweens.killTweensOf(this.sprite);
+    this.power -= this.config.specialCost;
+    this.currentAttack = { type: 'special', damage: 0, range: 0, hit: true, launch: false, knockBoost: 1 };
+
+    SFX.special();
+    this.scene.events.emit('fighter-special', this);
+    this.setAnim('special', 0);
+
+    this.scene.time.delayedCall(120, () => this.activateSuperAwaken());
+
+    this.attackAnimTimers.push(this.scene.time.delayedCall(520, () => {
+      this.finishAttackMotion();
+    }));
   }
 
   update(time, controls, canAct = true) {
@@ -431,7 +483,7 @@ export class Fighter {
 
   resetForRound() {
     this.hp = this.maxHp;
-    this.power = 50;
+    this.power = this.config.powerStart ?? 50;
     this.isAttacking = false;
     this.isBlocking = false;
     this.isHit = false;
@@ -467,6 +519,9 @@ export class Fighter {
     this.glowRing.setStrokeStyle(1, this.config.auraColor, 0);
     this.activeForm = getActiveForm(this.config.id, 1) ?? 'base';
     this.awakenTriggered = false;
+    this.superAwakenActive = false;
+    this.superAwakenTimer?.remove();
+    this.superAwakenTimer = null;
     this.currentAnim = 'idle';
     this.animFrame = 0;
     this.syncDisplayBaseline();
@@ -497,6 +552,7 @@ export class Fighter {
       const clones = this.scene.getTwiceClones?.(this) ?? [];
       if (clones.length >= (this.config.cloneMax ?? 5)) return false;
     }
+    if (type === 'special' && this.config.awakenOnSuper && this.superAwakenActive) return false;
 
     const cdMult = this.config.attackCooldownMult ?? 1;
     return time - this.lastAttackTime > Math.round(cd * cdMult);
@@ -574,6 +630,10 @@ export class Fighter {
       this.body.body.setVelocityX(this.facing * burst);
       SFX.whiff();
     } else if (type === 'special') {
+      if (this.config.awakenOnSuper) {
+        this.performOverhaulSuper(time);
+        return;
+      }
       damage = this.config.id === 'twice' ? 0 : this.config.specialDamage;
       duration = (this.config.id === 'allforone' || this.config.id === 'dabi') ? 520 : this.config.id === 'twice' ? 420 : 480;
       range = this.config.id === 'twice' ? ATTACK_RANGE : ATTACK_RANGE + 30;
@@ -1427,7 +1487,10 @@ export class Fighter {
       } else if (this.zeroGravity) {
         this.sprite.setTint(0xf1a7c1);
       } else if (this.activeForm === 'awakened') {
-        this.sprite.setTint(this.config.id === 'deku' ? 0x88eeff : 0xddbbff);
+        const tint = this.config.id === 'deku' ? 0x88eeff
+          : this.config.id === 'overhaul' ? 0xcc88ff
+            : 0xddbbff;
+        this.sprite.setTint(tint);
       } else {
         this.sprite.clearTint();
       }
@@ -1452,6 +1515,7 @@ export class Fighter {
 
   regenPower() {
     let regenRate = 12;
+    if (this.config.powerRegenMult) regenRate *= this.config.powerRegenMult;
     if (this.config.id === 'megumi') regenRate = 18;
     this.power = Math.min(this.maxPower, this.power + (regenRate * this.scene.game.loop.delta) / 1000);
   }
@@ -1633,6 +1697,8 @@ export class Fighter {
     this.clearAttackAnimTimers();
     this.clearZeroGravity();
     this.clearBurnTimers();
+    this.superAwakenTimer?.remove();
+    this.superAwakenTimer = null;
     this.scene.tweens.killTweensOf(this.sprite);
     this.scene.tweens.killTweensOf(this.body);
     if (this.hitbox?.active) this.hitbox.destroy();
